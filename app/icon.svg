@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Sticker badge -->
+  <rect x="14" y="14" width="484" height="484" rx="116" fill="#fdfcf7" stroke="#1f2430" stroke-width="12"/>
+  <!-- Subtle hand-drawn double edge -->
+  <rect x="34" y="34" width="444" height="444" rx="100" fill="none" stroke="#1f2430" stroke-width="4" stroke-opacity="0.35"/>
+  <!-- AU75 wordmark -->
+  <text x="256" y="340" font-family="'Patrick Hand','Comic Sans MS',cursive" font-size="252" font-weight="700" fill="#1f2430" text-anchor="middle">
+    AU<tspan fill="#e0175c">75</tspan>
+  </text>
+  <!-- Marker underline under the whole wordmark -->
+  <rect x="46" y="368" width="420" height="14" rx="7" fill="#ffe873"/>
+</svg>

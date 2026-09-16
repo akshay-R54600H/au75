@@ -18,7 +18,6 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   appleWebApp: { capable: true, statusBarStyle: "default", title: "AU75" },
   formatDetection: { telephone: false },
-  icons: { icon: "/icons/icon-192.png", apple: "/icons/apple-touch-icon.png" },
   openGraph: { title: "AU75 — Attendance Predictor", description: "Know exactly how many classes you can skip.", type: "website" },
 };
 
