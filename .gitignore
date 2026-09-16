@@ -1,0 +1,25 @@
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+
+# env
+.env*
+!.env.example
+
+# misc
+.DS_Store
+*.pem
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+
+# legacy android/capacitor build artefacts
+/android/
+*.apk
+eng.traineddata
+
+# portal probe secrets + captured HTML (never commit)
+scripts/

@@ -1,0 +1,213 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   Theme tokens (RGB triplets so Tailwind alpha modifiers work).
+   Palette: warm "xerox angadi" stationery — paper, ink, pen
+   blue, marker pink, sticky yellow. Light is default; dark
+   applies via [data-theme="dark"] or OS preference.
+   ============================================================ */
+
+:root {
+  --paper: 253 252 247;
+  --surface: 255 255 255;
+  --line: 239 234 222;
+  --line-strong: 214 205 188;
+  --rule: 220 227 240;
+  --ink: 31 36 48;
+  --muted: 91 98 114;
+  --faint: 150 153 164;
+  --pen: 47 58 163;
+  --pen-deep: 24 31 101;
+  --pen-soft: 233 237 250;
+  --marker: 224 23 92;
+  --marker-deep: 178 10 70;
+  --marker-soft: 255 230 239;
+  --sticky: 255 232 115;
+  --highlight: 255 232 115;
+  --success: 30 158 98;
+  --success-soft: 228 246 238;
+  --warning: 206 145 16;
+  --warning-soft: 253 244 222;
+  --danger: 217 48 37;
+  --danger-soft: 251 232 230;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: 22 22 33;
+    --surface: 29 29 44;
+    --line: 44 44 69;
+    --line-strong: 64 64 96;
+    --rule: 52 56 78;
+    --ink: 235 234 250;
+    --muted: 160 159 182;
+    --faint: 108 107 138;
+    --pen: 135 146 255;
+    --pen-deep: 170 178 255;
+    --pen-soft: 43 46 90;
+    --marker: 255 96 158;
+    --marker-deep: 255 150 190;
+    --marker-soft: 79 28 49;
+    --sticky: 106 85 22;
+    --highlight: 106 85 22;
+    --success: 79 201 140;
+    --success-soft: 22 56 38;
+    --warning: 240 176 64;
+    --warning-soft: 61 46 16;
+    --danger: 255 106 92;
+    --danger-soft: 64 24 22;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --paper: 22 22 33;
+  --surface: 29 29 44;
+  --line: 44 44 69;
+  --line-strong: 64 64 96;
+  --rule: 52 56 78;
+  --ink: 235 234 250;
+  --muted: 160 159 182;
+  --faint: 108 107 138;
+  --pen: 135 146 255;
+  --pen-deep: 170 178 255;
+  --pen-soft: 43 46 90;
+  --marker: 255 96 158;
+  --marker-deep: 255 150 190;
+  --marker-soft: 79 28 49;
+  --sticky: 106 85 22;
+  --highlight: 106 85 22;
+  --success: 79 201 140;
+  --success-soft: 22 56 38;
+  --warning: 240 176 64;
+  --warning-soft: 61 46 16;
+  --danger: 255 106 92;
+  --danger-soft: 64 24 22;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  background: rgb(var(--paper));
+  color: rgb(var(--ink));
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  -webkit-tap-highlight-color: transparent;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid rgb(var(--pen));
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------
+   Stationery helpers — "xerox angadi" sheet, doodle, marker
+   ------------------------------------------------------------ */
+
+/* Paper card: warm white, soft edge, layered sheet shadow. */
+.card {
+  background: rgb(var(--surface));
+  border: 1px solid rgb(var(--line));
+  border-radius: 16px;
+  box-shadow: 0 1px 0 rgb(31 36 48 / 0.04), 0 10px 30px -18px rgb(31 36 48 / 0.35);
+}
+
+/* Wobbly "doodle" pen border — the asymmetric radius trick. */
+.sketch,
+.doodle {
+  border: 2px solid rgb(var(--ink));
+  border-radius: 225px 15px 235px 15px / 15px 235px 15px 225px;
+}
+
+/* Marker highlight behind a word (sticky-note yellow). */
+.hl {
+  background: linear-gradient(
+    104deg,
+    transparent 0.9%,
+    rgb(var(--highlight)) 2.4%,
+    rgb(var(--highlight)) 97%,
+    transparent 98%
+  );
+  padding: 0 0.25em;
+  border-radius: 4px;
+}
+
+/* Highlighter stroke along the bottom of a heading. */
+.marker-underline {
+  background-image: linear-gradient(rgb(var(--marker)) , rgb(var(--marker)));
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  background-size: 100% 3px;
+  padding-bottom: 2px;
+}
+
+/* Sticky note with a folded corner. */
+.sticky-note {
+  background: rgb(var(--sticky));
+  box-shadow: 2px 3px 10px -4px rgb(31 36 48 / 0.5);
+  clip-path: polygon(0 0, 100% 0, 100% 82%, 82% 100%, 0 100%);
+}
+
+/* Translucent tape strip. */
+.tape {
+  background: rgb(255 255 255 / 0.6);
+  border-left: 1px dashed rgb(255 255 255 / 0.9);
+  border-right: 1px dashed rgb(255 255 255 / 0.9);
+  box-shadow: 0 1px 6px -3px rgb(31 36 48 / 0.5);
+}
+
+/* Hand-drawn "token" lettering, like a ticket number. */
+.token-plate {
+  font-family: var(--font-hand), "Comic Sans MS", cursive;
+  letter-spacing: 0.08em;
+}
+
+/* Section label */
+.eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgb(var(--faint));
+}
+
+/* Hide scrollbar for horizontal stat strips */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
