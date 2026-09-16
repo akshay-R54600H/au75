@@ -25,6 +25,7 @@ import {
   classify,
   sleep,
   extractFormAction,
+  extractFormFields,
   findOtpForm,
   type PageKind,
 } from "../portal/loginFlow";
@@ -172,10 +173,21 @@ export async function submitLogin(
     );
 
     if (classify(resp.body) === "login") {
+      const portalError = (extractFormFields(resp.body).errorMessage ?? "").trim();
+      const isCaptchaError = /captcha|security\s*cod|verification cod/i.test(portalError);
+      const message =
+        isCaptchaError
+          ? "The CAPTCHA didn't match. Tap Refresh for a new image and try again."
+          : portalError &&
+              /invalid|wrong|incorrect|not\s*exist|enter\s*(a\s*)?(valid|correct)|user.{0,4}name|password/i.test(
+                portalError
+              )
+            ? `The portal says: ${portalError}`
+            : "Wrong student ID or password. Please check and try again.";
       return {
         step: "failed",
-        reason: "invalid-credentials",
-        message: "Wrong student ID, password or CAPTCHA. Please check and try again.",
+        reason: isCaptchaError ? "captcha-failed" : "invalid-credentials",
+        message,
       };
     }
 

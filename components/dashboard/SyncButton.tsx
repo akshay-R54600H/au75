@@ -90,7 +90,12 @@ export default function SyncButton({ compact = false }: { compact?: boolean }) {
     try {
       const r = await submitLogin(token, id, pw, captcha.trim());
       if (!r.step) {
-        setMessage(r.error || "Login failed. Try again.");
+        setMessage(
+          r.error ||
+            (r.reason === "captcha-failed"
+              ? "The CAPTCHA didn't match. Tap Refresh for a new image and try again."
+              : "Wrong student ID or password. Please check and try again.")
+        );
         if (useSaved) {
           setUseSaved(false);
           setMessage("Your saved login was rejected — the password may have changed. Enter it again.");

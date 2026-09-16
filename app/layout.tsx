@@ -4,6 +4,7 @@ import "./globals.css";
 import { AppProvider } from "@/lib/context/AppContext";
 import TncConsent from "@/components/tnc/TncConsent";
 import ServiceWorker from "@/components/pwa/ServiceWorker";
+import { Analytics } from "@vercel/analytics/next";
 import { THEME_STORAGE_KEY } from "@/lib/themes";
 
 const nunito = Nunito({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
@@ -47,6 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
         </AppProvider>
         <ServiceWorker />
+        <Analytics />
       </body>
     </html>
   );
