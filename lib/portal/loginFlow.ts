@@ -2,7 +2,7 @@
 // Portal login flow — pure helpers (server + native client)
 //
 // Shared by the server-side session manager (lib/server/portalSessions)
-// and the in-app CapacitorHttp sync engine (lib/portal/nativeSync).
+// and the server-side sync engine (lib/server/portalSessions).
 // No Node or Capacitor imports here — just regex over page HTML,
 // so this module can run anywhere.
 // ============================================================

@@ -6,9 +6,8 @@
 //   The user logs in manually (opens portal tab, completes CAPTCHA + OTP),
 //   then returns to the app and presses Sync.
 //
-//   On web: fetch() with credentials from the same browser context.
-//   On Capacitor WebView: same — the WebView shares cookies with
-//     in-app browser sessions when using @capacitor/browser.
+//   On web: fetch() with credentials from the same browser context,
+//   driven by the SyncButton modal flow (CAPTCHA → login → OTP).
 //
 //   CORS note: The portal does NOT send CORS headers, so cross-origin
 //   fetch() from localhost/the-app-origin will be blocked.

@@ -16,10 +16,5 @@
 next-env.d.ts
 npm-debug.log*
 
-# legacy android/capacitor build artefacts
-/android/
-*.apk
-eng.traineddata
-
 # portal probe secrets + captured HTML (never commit)
 scripts/
