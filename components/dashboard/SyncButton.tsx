@@ -240,7 +240,8 @@ export default function SyncButton({ compact = false }: { compact?: boolean }) {
                   value={captcha}
                   onChange={(e) => setCaptcha(e.target.value)}
                   autoCorrect="off"
-                  autoCapitalize="characters"
+                  autoCapitalize="none"
+                  autoComplete="off"
                   spellCheck={false}
                   placeholder="Case-sensitive"
                 />
