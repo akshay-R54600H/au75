@@ -3,6 +3,7 @@ import { ArrowRight, RefreshCw, CalendarCheck, WifiOff, ShieldCheck } from "luci
 import Logo from "@/components/ui/Logo";
 import Confetti from "@/components/landing/Confetti";
 import InstallButton from "@/components/pwa/InstallButton";
+import AppFooter from "@/components/layout/AppFooter";
 import { HeroLeftDoodle, HeroRightDoodle } from "@/components/landing/Doodles";
 
 const FEEDBACK_URL = "https://tally.so/r/aQ1WNX";
@@ -90,15 +91,7 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="border-t border-line">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-8 text-xs text-faint sm:px-6">
-          <span>AU75 is an independent student project, not affiliated with Alliance University.</span>
-          <span className="flex gap-4">
-            <Link href="/policy" className="hover:text-ink">Terms &amp; privacy</Link>
-            <a href={FEEDBACK_URL} target="_blank" rel="noopener noreferrer" className="hover:text-ink">Feedback</a>
-          </span>
-        </div>
-      </footer>
+      <AppFooter bordered />
     </div>
   );
 }

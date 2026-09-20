@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import Sidebar from "./Sidebar";
 import BottomNav from "./BottomNav";
+import AppFooter from "./AppFooter";
 import Logo from "@/components/ui/Logo";
 import { useApp } from "@/lib/context/AppContext";
 
@@ -44,13 +45,7 @@ export default function AppShell({ children, title, action }: Props) {
               </div>
             )}
             {children}
-            <footer className="mt-12 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-center text-xs text-faint">
-              <span>AU75 · not affiliated with Alliance University</span>
-              <Link href="/policy" className="underline-offset-2 hover:underline">Terms</Link>
-              <a href="https://tally.so/r/aQ1WNX" target="_blank" rel="noopener noreferrer" className="underline-offset-2 hover:underline">
-                Feedback
-              </a>
-            </footer>
+            <AppFooter />
           </div>
         </main>
       </div>
