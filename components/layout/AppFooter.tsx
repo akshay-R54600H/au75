@@ -6,9 +6,9 @@ const FEEDBACK_URL = "https://tally.so/r/aQ1WNX";
 function Credit() {
   return (
     <p className="flex flex-wrap items-center justify-center gap-x-1 text-[11px] text-faint">
-      Made this Ai slop with absolutely no
+      AI slop, lovingly made with zero
       <Heart size={11} strokeWidth={2} className="fill-marker text-marker" aria-hidden />
-      by Akshay and Pradeep
+      by Akshay &amp; Pradeep.
     </p>
   );
 }
