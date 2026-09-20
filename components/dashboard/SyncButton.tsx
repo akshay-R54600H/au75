@@ -236,13 +236,15 @@ export default function SyncButton({ compact = false }: { compact?: boolean }) {
                   </button>
                 </div>
                 <input
-                  className={`${INPUT} mt-2 tracking-widest`}
+                  className={`${INPUT} mt-2`}
+                  type="text"
                   value={captcha}
                   onChange={(e) => setCaptcha(e.target.value)}
                   autoCorrect="off"
-                  autoCapitalize="none"
+                  autoCapitalize="off"
                   autoComplete="off"
                   spellCheck={false}
+                  enterKeyHint="done"
                   placeholder="Case-sensitive"
                 />
               </div>
