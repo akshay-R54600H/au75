@@ -47,7 +47,6 @@ export default function SyncButton({ compact = false }: { compact?: boolean }) {
 
   async function fetchCaptcha(): Promise<boolean> {
     setBusy(true);
-    setMessage("");
     try {
       const r = await createSession();
       if (!r.ok || !r.token || !r.captcha) {
@@ -70,6 +69,7 @@ export default function SyncButton({ compact = false }: { compact?: boolean }) {
 
   async function start() {
     setStep("loading");
+    setMessage("");
     const q = loadQuickLogin();
     setUseSaved(Boolean(q));
     setStudentId(q?.studentId ?? "");
@@ -90,17 +90,15 @@ export default function SyncButton({ compact = false }: { compact?: boolean }) {
     try {
       const r = await submitLogin(token, id, pw, captcha.trim());
       if (!r.step) {
-        setMessage(
-          r.error ||
-            (r.reason === "captcha-failed"
-              ? "The CAPTCHA didn't match. Tap Refresh for a new image and try again."
-              : "Wrong student ID or password. Please check and try again.")
-        );
-        if (useSaved) {
-          setUseSaved(false);
-          setMessage("Your saved login was rejected — the password may have changed. Enter it again.");
-        }
+        const captchaFailed = r.reason === "captcha-failed";
+        const text = captchaFailed
+          ? r.error || "The CAPTCHA didn't match. Tap Refresh for a new image and try again."
+          : r.reason === "network"
+            ? r.error || "Could not reach the AU portal. Try again."
+            : "The entered user ID or password is wrong.";
+        if (useSaved && !captchaFailed) setUseSaved(false);
         await fetchCaptcha(); // captcha is single-use
+        setMessage(text);
         return;
       }
       if (r.step === "otp") {

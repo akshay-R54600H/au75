@@ -183,7 +183,7 @@ export async function submitLogin(
                 portalError
               )
             ? `The portal says: ${portalError}`
-            : "Wrong student ID or password. Please check and try again.";
+            : "The entered user ID or password is wrong.";
       return {
         step: "failed",
         reason: isCaptchaError ? "captcha-failed" : "invalid-credentials",
