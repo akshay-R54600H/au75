@@ -5,9 +5,9 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, Clock, MapPin } from "lucide-react";
 import { useApp } from "@/lib/context/AppContext";
 import type { ClassSession, Subject } from "@/lib/models/types";
-import { calcPercentage } from "@/lib/calculations/engine";
+import { calcPercentage, calcPrediction } from "@/lib/calculations/engine";
 import { subjectVerdict } from "@/lib/calculations/summary";
-import { todayISO, fmtDay, fmtRange, minutes } from "@/lib/calculations/dates";
+import { todayISO, fmtDay, fmtRange, fmtPct, minutes } from "@/lib/calculations/dates";
 import CircularProgress from "@/components/ui/CircularProgress";
 import PredictionToggle from "@/components/ui/PredictionToggle";
 
@@ -190,6 +190,20 @@ function ClassCard({
   const room = session.room ?? subject?.room;
   const pred = state.predictions[session.id] ?? "present";
 
+  const futureForSubject = useMemo(
+    () => state.sessions.filter((s) => s.subjectId === session.subjectId && s.isFuture),
+    [state.sessions, session.subjectId]
+  );
+  const plan = useMemo(
+    () => (subject ? calcPrediction(subject, futureForSubject, state.predictions) : null),
+    [subject, futureForSubject, state.predictions]
+  );
+  const projectedPct = plan ? plan.predictedPercentage : pct;
+  const pv =
+    subject && plan
+      ? subjectVerdict(plan.predictedAttended, plan.predictedTotal, attendanceTarget, requirement)
+      : v;
+
   return (
     <article
       className={`card p-4 ${ongoing ? "border-accent bg-accent-soft/50 shadow-[3px_3px_0_rgb(var(--accent)/0.35)]" : done ? "opacity-70" : ""}`}
@@ -230,7 +244,15 @@ function ClassCard({
           </div>
           <p className={`mt-2 text-sm font-bold ${TONE[v.status]}`}>{v.headline}</p>
         </Link>
-        <CircularProgress value={pct} size={80} target={attendanceTarget} decimals={showDecimals} />
+        <div className="flex shrink-0 flex-col items-center">
+          <CircularProgress value={pct} size={80} target={attendanceTarget} decimals={showDecimals} />
+          <div className="mt-1.5 text-center text-xs font-bold text-ink whitespace-nowrap">
+            <span>Projected: </span>
+            <span className={`text-sm font-extrabold ${TONE[pv.status]}`}>
+              {fmtPct(projectedPct, showDecimals)}%
+            </span>
+          </div>
+        </div>
       </div>
       {session.isFuture && !done && (
         <div className="mt-3 border-t border-line pt-3">

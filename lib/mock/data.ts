@@ -9,7 +9,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   attendanceTarget: 75,
   requirement: "atLeast",
   theme: "system",
-  showDecimals: false,
+  showDecimals: true,
   milestones: [],
 };
 

@@ -85,7 +85,15 @@ export default function SubjectDetail({ subjectId }: { subjectId: string }) {
               </li>
             </ul>
           </div>
-          <CircularProgress value={currentPct} size={96} target={attendanceTarget} decimals={showDecimals} />
+          <div className="flex shrink-0 flex-col items-center">
+            <CircularProgress value={currentPct} size={96} target={attendanceTarget} decimals={showDecimals} />
+            <div className="mt-1.5 text-center text-xs font-bold text-ink whitespace-nowrap">
+              <span>Projected: </span>
+              <span className={`text-sm font-extrabold ${TONE[v.status]}`}>
+                {fmtPct(plan.predictedPercentage, showDecimals)}%
+              </span>
+            </div>
+          </div>
         </div>
 
         <div className={`mt-4 rounded-xl px-4 py-3 text-sm font-semibold ${SOFT[v.status]} ${TONE[v.status]}`}>

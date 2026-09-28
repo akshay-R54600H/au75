@@ -87,7 +87,7 @@ export async function loadAppData(): Promise<AppData> {
     attendanceTarget: (settingsMap["attendanceTarget"] as number) ?? DEFAULT_SETTINGS.attendanceTarget,
     requirement: (settingsMap["requirement"] as AppSettings["requirement"]) ?? DEFAULT_SETTINGS.requirement,
     theme: isThemeId(theme) ? theme : DEFAULT_SETTINGS.theme,
-    showDecimals: (settingsMap["showDecimals"] as boolean) ?? false,
+    showDecimals: (settingsMap["showDecimals"] as boolean) ?? DEFAULT_SETTINGS.showDecimals,
     milestones: (settingsMap["milestones"] as AppSettings["milestones"]) ?? [],
     lastSyncedAt: settingsMap["lastSyncedAt"] as string | undefined,
   };
