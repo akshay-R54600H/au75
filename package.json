@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "node --no-warnings=MODULE_TYPELESS_PACKAGE_JSON tests/engine.test.mjs && node --no-warnings=MODULE_TYPELESS_PACKAGE_JSON tests/summary.test.mjs && node --no-warnings=MODULE_TYPELESS_PACKAGE_JSON tests/parsers.test.mjs"
+    "test": "node --no-warnings=MODULE_TYPELESS_PACKAGE_JSON tests/engine.test.mjs && node --no-warnings=MODULE_TYPELESS_PACKAGE_JSON tests/summary.test.mjs && node --no-warnings=MODULE_TYPELESS_PACKAGE_JSON tests/parsers.test.mjs && node --no-warnings=MODULE_TYPELESS_PACKAGE_JSON tests/admin_maintenance.test.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
