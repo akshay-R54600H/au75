@@ -4,6 +4,7 @@ import "./globals.css";
 import { AppProvider } from "@/lib/context/AppContext";
 import TncConsent from "@/components/tnc/TncConsent";
 import ServiceWorker from "@/components/pwa/ServiceWorker";
+import MaintenanceGuard from "@/components/maintenance/MaintenanceGuard";
 import { Analytics } from "@vercel/analytics/next";
 import { THEME_STORAGE_KEY } from "@/lib/themes";
 
@@ -45,7 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <AppProvider>
           <TncConsent />
-          {children}
+          <MaintenanceGuard>{children}</MaintenanceGuard>
         </AppProvider>
         <ServiceWorker />
         <Analytics />

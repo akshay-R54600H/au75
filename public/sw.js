@@ -20,7 +20,13 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   const { request } = e;
   const url = new URL(request.url);
-  if (request.method !== "GET" || url.origin !== location.origin || url.pathname.startsWith("/api/")) return;
+  if (
+    request.method !== "GET" ||
+    url.origin !== location.origin ||
+    url.pathname.startsWith("/api/") ||
+    url.pathname.startsWith("/admin")
+  )
+    return;
 
   if (request.mode === "navigate") {
     e.respondWith(
