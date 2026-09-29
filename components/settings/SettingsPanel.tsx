@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Plus, Trash2, Download, Upload, LogOut, ExternalLink } from "lucide-react";
 import { useApp } from "@/lib/context/AppContext";
@@ -43,9 +43,16 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
       aria-checked={checked}
       aria-label={label}
       onClick={() => onChange(!checked)}
-      className={`relative h-7 w-12 rounded-full border-2 transition-colors ${checked ? "border-accent bg-accent" : "border-line-strong bg-line"}`}
+      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+        checked ? "border-accent bg-accent" : "border-line-strong bg-line"
+      }`}
     >
-      <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${checked ? "translate-x-5" : "translate-x-0.5"}`} />
+      <span
+        aria-hidden="true"
+        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition duration-200 ease-in-out ${
+          checked ? "translate-x-5" : "translate-x-0"
+        }`}
+      />
     </button>
   );
 }
@@ -72,8 +79,16 @@ export default function SettingsPanel() {
   const { settings } = state;
   const [target, setTarget] = useState(String(settings.attendanceTarget));
   const [msg, setMsg] = useState<string | null>(null);
-  const [hasSaved, setHasSaved] = useState(() => Boolean(loadQuickLogin()));
+  const [hasSaved, setHasSaved] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setHasSaved(Boolean(loadQuickLogin()));
+  }, []);
+
+  useEffect(() => {
+    setTarget(String(settings.attendanceTarget));
+  }, [settings.attendanceTarget]);
 
   function flash(m: string) {
     setMsg(m);

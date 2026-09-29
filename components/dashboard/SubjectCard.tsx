@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import type { Subject } from "@/lib/models/types";
-import { calcPercentage } from "@/lib/calculations/engine";
+import { calcPercentage, calcPrediction } from "@/lib/calculations/engine";
 import { subjectVerdict } from "@/lib/calculations/summary";
 import { fmtPct } from "@/lib/calculations/dates";
 import { useApp } from "@/lib/context/AppContext";
@@ -16,6 +16,10 @@ export default function SubjectCard({ subject }: { subject: Subject }) {
   const { attendanceTarget, requirement, showDecimals } = state.settings;
   const pct = calcPercentage(subject.attended, subject.total);
   const v = subjectVerdict(subject.attended, subject.total, attendanceTarget, requirement);
+
+  const future = state.sessions.filter((s) => s.subjectId === subject.id && s.isFuture);
+  const plan = calcPrediction(subject, future, state.predictions);
+  const pv = subjectVerdict(plan.predictedAttended, plan.predictedTotal, attendanceTarget, requirement);
 
   return (
     <Link
@@ -32,7 +36,9 @@ export default function SubjectCard({ subject }: { subject: Subject }) {
           <div className={`font-hand text-3xl font-bold leading-none ${TONE[v.status]}`}>
             {fmtPct(pct, showDecimals)}%
           </div>
-          <div className="text-xs text-faint">{subject.attended}/{subject.total}</div>
+          <div className="mt-1 text-xs font-bold text-ink">
+            Projected: <span className={`text-sm font-extrabold ${TONE[pv.status]}`}>{fmtPct(plan.predictedPercentage, showDecimals)}%</span>
+          </div>
         </div>
       </div>
 
