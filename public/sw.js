@@ -2,7 +2,7 @@
 // Navigations: network first, fall back to cached page (or /dashboard).
 // Static assets (/_next/static, icons, fonts): cache first.
 // API calls are never cached.
-const CACHE = "au75-v1";
+const CACHE = "au75-v2";
 const SHELL = ["/", "/dashboard", "/subjects", "/calendar", "/settings", "/policy", "/manifest.json"];
 
 self.addEventListener("install", (e) => {
@@ -23,6 +23,8 @@ self.addEventListener("fetch", (e) => {
   if (
     request.method !== "GET" ||
     url.origin !== location.origin ||
+    url.hostname === "localhost" ||
+    url.hostname === "127.0.0.1" ||
     url.pathname.startsWith("/api/") ||
     url.pathname.startsWith("/admin")
   )

@@ -3,6 +3,7 @@
 import AppShell from "@/components/layout/AppShell";
 import DemoBanner from "@/components/dashboard/DemoBanner";
 import StatStrip from "@/components/dashboard/StatStrip";
+import DisclaimerCarousel from "@/components/dashboard/DisclaimerCarousel";
 import HomeTimetable from "@/components/dashboard/HomeTimetable";
 import SyncButton from "@/components/dashboard/SyncButton";
 import { useApp } from "@/lib/context/AppContext";
@@ -18,6 +19,7 @@ export default function DashboardPage() {
         <>
           <DemoBanner />
           <StatStrip />
+          <DisclaimerCarousel />
           <HomeTimetable />
         </>
       )}

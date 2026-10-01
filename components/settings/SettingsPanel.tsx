@@ -241,6 +241,9 @@ export default function SettingsPanel() {
           <a href="https://tally.so/r/aQ1WNX" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:text-ink">
             Feedback <ExternalLink size={11} />
           </a>
+          <a href="https://chat.whatsapp.com/KyCzZjxdfcPFBaVzNrGGKH" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:text-[#25D366]">
+            WhatsApp <ExternalLink size={11} />
+          </a>
         </span>
       </div>
     </div>

@@ -35,6 +35,9 @@ export default function AppFooter({ bordered = false }: { bordered?: boolean }) 
             <a href={FEEDBACK_URL} target="_blank" rel="noopener noreferrer" className="underline-offset-2 hover:text-ink hover:underline">
               Feedback
             </a>
+            <a href="https://chat.whatsapp.com/KyCzZjxdfcPFBaVzNrGGKH" target="_blank" rel="noopener noreferrer" className="underline-offset-2 hover:text-ink hover:underline">
+              WhatsApp group
+            </a>
           </span>
         </div>
         <Credit />
