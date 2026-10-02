@@ -45,14 +45,22 @@ export default function HomeTimetable() {
     return six.slice(0, hasSat ? 6 : 5);
   }, [weekOffset, state.sessions]);
 
-  const weekKey = week.join();
   const [selected, setSelected] = useState(() => (week.includes(today) ? today : week[0]));
+  const prevTodayRef = useRef(today);
+  const prevWeekOffsetRef = useRef(weekOffset);
 
+  // Automatically update selected day when the calendar day rolls over (e.g. at midnight)
+  // or when navigating between weeks. While on the same day/week, day changes only when clicked.
   useEffect(() => {
-    setSelected(week.includes(today) ? today : week[0]);
-    // weekKey is the stable identity of the visible days
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weekKey, today]);
+    const dayChanged = prevTodayRef.current !== today;
+    const weekChanged = prevWeekOffsetRef.current !== weekOffset;
+    prevTodayRef.current = today;
+    prevWeekOffsetRef.current = weekOffset;
+
+    if (dayChanged || weekChanged) {
+      setSelected(week.includes(today) ? today : week[0]);
+    }
+  }, [today, weekOffset, week]);
 
   const sessions = useMemo(
     () =>
@@ -65,20 +73,6 @@ export default function HomeTimetable() {
   const subjects = useMemo(() => new Map(state.subjects.map((s) => [s.id, s])), [state.subjects]);
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const selectedLabel = LABELS[week.indexOf(selected)] ?? fmtDay(selected);
-  const touchX = useRef<number | null>(null);
-
-  function onTouchStart(e: React.TouchEvent) {
-    touchX.current = e.changedTouches[0].clientX;
-  }
-  function onTouchEnd(e: React.TouchEvent) {
-    if (touchX.current == null) return;
-    const dx = e.changedTouches[0].clientX - touchX.current;
-    touchX.current = null;
-    if (Math.abs(dx) < 48) return;
-    const i = week.indexOf(selected);
-    const next = week[i + (dx < 0 ? 1 : -1)];
-    if (next) setSelected(next);
-  }
 
   return (
     <section aria-labelledby="timetable-heading">
@@ -133,8 +127,6 @@ export default function HomeTimetable() {
       <div
         key={selected}
         className="animate-fade-up"
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
       >
         {sessions.length === 0 ? (
           <div className="card px-4 py-8 text-center text-sm text-muted">
