@@ -32,6 +32,7 @@
 // ============================================================
 
 import type { ClassSession } from "@/lib/models/types";
+import { isSessionFuture } from "../calculations/dates.ts";
 
 const CODE_OK_RE = /[A-Z]{2,8}\s*\d{3}/i;
 
@@ -171,7 +172,7 @@ export function parseTimetable(html: string): ClassSession[] | null {
         startTime: times.start,
         endTime: times.end,
         room: meta.room,
-        isFuture: dateStr >= today,
+        isFuture: isSessionFuture({ date: dateStr, startTime: times.start, endTime: times.end }),
       });
     }
   }

@@ -4,6 +4,7 @@
 // ============================================================
 
 import type { Subject, ClassSession, AcademicDay, AppSettings } from "@/lib/models/types";
+import { isSessionFuture } from "../calculations/dates.ts";
 
 export const DEFAULT_SETTINGS: AppSettings = {
   attendanceTarget: 75,
@@ -77,7 +78,7 @@ function build(): ClassSession[] {
           startTime,
           endTime,
           room: s.room,
-          isFuture: date >= todayIso,
+          isFuture: isSessionFuture({ date, startTime, endTime }),
         });
       }
     }

@@ -25,7 +25,7 @@ import {
 } from "@/lib/storage/db";
 import { MOCK_SUBJECTS, MOCK_SESSIONS, MOCK_ACADEMIC_DAYS, DEFAULT_SETTINGS } from "@/lib/mock/data";
 import { THEME_STORAGE_KEY } from "@/lib/themes";
-import { todayISO } from "@/lib/calculations/dates";
+import { todayISO, isSessionFuture } from "@/lib/calculations/dates";
 
 interface AppState extends AppData {
   isLoading: boolean;
@@ -38,12 +38,12 @@ type Action =
   | { type: "SET_PREDICTIONS"; entries: Record<string, PredictionState> }
   | { type: "UPDATE_SETTINGS"; settings: Partial<AppSettings> }
   | { type: "CLEAR_DATA" }
-  | { type: "SET_OFFLINE"; offline: boolean };
+  | { type: "SET_OFFLINE"; offline: boolean }
+  | { type: "REFRESH_FUTURE" };
 
-/** `isFuture` is computed at sync time; refresh it against today's date. */
-function refreshFuture(sessions: ClassSession[]): ClassSession[] {
-  const today = todayISO();
-  return sessions.map((s) => ({ ...s, isFuture: s.date >= today }));
+/** `isFuture` is computed at sync time; refresh it against today's date and timetable end times. */
+function refreshFuture(sessions: ClassSession[], now: Date = new Date()): ClassSession[] {
+  return sessions.map((s) => ({ ...s, isFuture: isSessionFuture(s, now) }));
 }
 
 const demoData: AppData = {
@@ -82,6 +82,13 @@ function reducer(state: AppState, action: Action): AppState {
       };
     case "SET_OFFLINE":
       return { ...state, isOffline: action.offline };
+    case "REFRESH_FUTURE": {
+      const now = new Date();
+      const updated = refreshFuture(state.sessions, now);
+      const changed = updated.some((s, i) => s.isFuture !== state.sessions[i]?.isFuture);
+      if (!changed) return state;
+      return { ...state, sessions: updated };
+    }
     default:
       return state;
   }
@@ -131,6 +138,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => {
       window.removeEventListener("online", on);
       window.removeEventListener("offline", off);
+    };
+  }, []);
+
+  // Automatically refresh future session status as time passes and classes finish
+  useEffect(() => {
+    const tick = () => dispatch({ type: "REFRESH_FUTURE" });
+    const timer = setInterval(tick, 30_000);
+    window.addEventListener("focus", tick);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", tick);
+      document.removeEventListener("visibilitychange", tick);
     };
   }, []);
 

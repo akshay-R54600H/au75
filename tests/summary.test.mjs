@@ -3,7 +3,7 @@
  * Run with: node tests/summary.test.mjs
  */
 import { subjectVerdict } from "../lib/calculations/summary.ts";
-import { fmtTime, fmtPct, minutes, todayISO } from "../lib/calculations/dates.ts";
+import { fmtTime, fmtPct, minutes, todayISO, isSessionFuture } from "../lib/calculations/dates.ts";
 import { seal, open } from "../lib/server/sessionToken.ts";
 
 let passed = 0, failed = 0;
@@ -34,6 +34,21 @@ assert(minutes("09:30") === 570, "09:30 → 570 minutes");
 assert(fmtPct(74.56, false) === "75" && fmtPct(74.56, true) === "74.6", "fmtPct rounds / one decimal");
 assert(/^\d{4}-\d{2}-\d{2}$/.test(todayISO()), "todayISO is ISO date");
 assert(todayISO(new Date(2026, 0, 5)) === "2026-01-05", "todayISO pads month/day");
+
+console.log("\n=== isSessionFuture (timetable class end detection) ===");
+const fixedNow = new Date("2026-10-02T10:30:00"); // 10:30 AM
+// Future date
+assert(isSessionFuture({ date: "2026-10-03", startTime: "08:00", endTime: "08:55" }, fixedNow) === true, "future date is future");
+// Past date
+assert(isSessionFuture({ date: "2026-10-01", startTime: "08:00", endTime: "08:55" }, fixedNow) === false, "past date is not future");
+// Same day, class ended at 09:55 AM
+assert(isSessionFuture({ date: "2026-10-02", startTime: "09:00", endTime: "09:55" }, fixedNow) === false, "class ended at 09:55 AM is no longer future at 10:30 AM");
+// Same day, class ends at 10:55 AM (currently ongoing)
+assert(isSessionFuture({ date: "2026-10-02", startTime: "10:00", endTime: "10:55" }, fixedNow) === true, "ongoing class ending at 10:55 AM is still future at 10:30 AM");
+// Same day, upcoming class at 14:00 PM
+assert(isSessionFuture({ date: "2026-10-02", startTime: "14:00", endTime: "14:55" }, fixedNow) === true, "upcoming class today is future");
+// Same day, class ended exact minute: 10:30 AM with endTime 10:30
+assert(isSessionFuture({ date: "2026-10-02", startTime: "09:35", endTime: "10:30" }, fixedNow) === false, "class ending at 10:30 AM is ended at 10:30 AM");
 
 console.log("\n=== sessionToken (stateless sessions) ===");
 const state = { stage: "captcha", cookies: { JSESSIONID: "abc.tomcat1" }, sessionToken: "abc.tomcat1", loginAction: "/auerp/StudentLoginAction.do", loginReferer: null, otpForm: null };
