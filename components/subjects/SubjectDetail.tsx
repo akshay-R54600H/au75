@@ -1,12 +1,13 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, MapPin, Clock, User, RotateCcw } from "lucide-react";
 import AppShell from "@/components/layout/AppShell";
 import { useApp } from "@/lib/context/AppContext";
 import { calcPercentage, calcPrediction } from "@/lib/calculations/engine";
 import { subjectVerdict } from "@/lib/calculations/summary";
-import { fmtDay, fmtWeekday, fmtTime, fmtRange, fmtPct } from "@/lib/calculations/dates";
+import { fmtDay, fmtWeekday, fmtTime, fmtRange, fmtPct, isSessionFuture, todayISO } from "@/lib/calculations/dates";
 import type { ClassSession, PredictionState } from "@/lib/models/types";
 import CircularProgress from "@/components/ui/CircularProgress";
 import Button from "@/components/ui/Button";
@@ -28,6 +29,13 @@ function tileClass(state: PredictionState, isToday: boolean): string {
 export default function SubjectDetail({ subjectId }: { subjectId: string }) {
   const router = useRouter();
   const { state, setPrediction, setPredictions } = useApp();
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
   const subject = state.subjects.find((s) => s.id === subjectId);
 
   if (!subject) {
@@ -39,10 +47,10 @@ export default function SubjectDetail({ subjectId }: { subjectId: string }) {
   }
 
   const { attendanceTarget, requirement, showDecimals, milestones } = state.settings;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO(now);
 
   const future = state.sessions
-    .filter((s) => s.subjectId === subjectId && s.isFuture)
+    .filter((s) => s.subjectId === subjectId && s.isFuture && isSessionFuture(s, now))
     .sort((a, b) => a.date.localeCompare(b.date) || a.session - b.session);
 
   const currentPct = calcPercentage(subject.attended, subject.total);

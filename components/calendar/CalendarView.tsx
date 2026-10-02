@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useApp } from "@/lib/context/AppContext";
 import type { ClassSession, PredictionState } from "@/lib/models/types";
-import { todayISO, fmtLong, fmtTime, fmtRange } from "@/lib/calculations/dates";
+import { todayISO, fmtLong, fmtTime, fmtRange, isSessionFuture } from "@/lib/calculations/dates";
 import PredictionToggle from "@/components/ui/PredictionToggle";
 import WeekGrid from "./WeekGrid";
 
@@ -45,7 +45,7 @@ export default function CalendarView() {
   }
 
   const selectedSessions = selected ? byDate.get(selected) ?? [] : [];
-  const selectedFuture = selectedSessions.filter((s) => s.isFuture);
+  const selectedFuture = selectedSessions.filter((s) => s.isFuture && isSessionFuture(s));
 
   function setDay(stateVal: PredictionState) {
     const entries: Record<string, PredictionState> = {};

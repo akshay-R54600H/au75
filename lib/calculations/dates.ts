@@ -45,10 +45,37 @@ export function fmtDateTime(isoDateTime: string): string {
 
 /** Minutes since midnight for "HH:MM". */
 export function minutes(t: string): number {
-  const [h, m] = t.split(":").map(Number);
+  const parts = t.trim().split(":");
+  const h = parseInt(parts[0], 10) || 0;
+  const m = parseInt(parts[1], 10) || 0;
   return h * 60 + m;
 }
 
 export function fmtPct(value: number, decimals: boolean): string {
   return decimals ? value.toFixed(1) : String(Math.round(value));
+}
+
+/**
+ * Determines whether a session is still in the future.
+ * A session is considered ended/past if:
+ * 1. Its date is before today's date, OR
+ * 2. Its date is today, and the class end time (or start time + 55 min) has already passed.
+ */
+export function isSessionFuture(
+  session: { date: string; startTime?: string; endTime?: string },
+  now: Date = new Date()
+): boolean {
+  const today = todayISO(now);
+  if (session.date < today) return false;
+  if (session.date > today) return true;
+
+  // Same day: check against current time
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  if (session.endTime) {
+    return nowMin < minutes(session.endTime);
+  }
+  if (session.startTime) {
+    return nowMin < minutes(session.startTime) + 55;
+  }
+  return true;
 }

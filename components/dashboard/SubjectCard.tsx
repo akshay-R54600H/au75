@@ -5,7 +5,7 @@ import { ChevronRight } from "lucide-react";
 import type { Subject } from "@/lib/models/types";
 import { calcPercentage, calcPrediction } from "@/lib/calculations/engine";
 import { subjectVerdict } from "@/lib/calculations/summary";
-import { fmtPct } from "@/lib/calculations/dates";
+import { fmtPct, isSessionFuture } from "@/lib/calculations/dates";
 import { useApp } from "@/lib/context/AppContext";
 import ProgressBar from "@/components/ui/ProgressBar";
 
@@ -17,7 +17,7 @@ export default function SubjectCard({ subject }: { subject: Subject }) {
   const pct = calcPercentage(subject.attended, subject.total);
   const v = subjectVerdict(subject.attended, subject.total, attendanceTarget, requirement);
 
-  const future = state.sessions.filter((s) => s.subjectId === subject.id && s.isFuture);
+  const future = state.sessions.filter((s) => s.subjectId === subject.id && s.isFuture && isSessionFuture(s));
   const plan = calcPrediction(subject, future, state.predictions);
   const pv = subjectVerdict(plan.predictedAttended, plan.predictedTotal, attendanceTarget, requirement);
 
