@@ -11,7 +11,13 @@ import ProgressBar from "@/components/ui/ProgressBar";
 
 const TONE = { safe: "text-success", warning: "text-warn", danger: "text-danger" } as const;
 
-export default function SubjectCard({ subject }: { subject: Subject }) {
+export default function SubjectCard({
+  subject,
+  baseHref = "/subjects",
+}: {
+  subject: Subject;
+  baseHref?: string;
+}) {
   const { state } = useApp();
   const { attendanceTarget, requirement, showDecimals } = state.settings;
   const pct = calcPercentage(subject.attended, subject.total);
@@ -23,7 +29,7 @@ export default function SubjectCard({ subject }: { subject: Subject }) {
 
   return (
     <Link
-      href={`/subjects?subject=${encodeURIComponent(subject.id)}`}
+      href={`${baseHref}?subject=${encodeURIComponent(subject.id)}`}
       className="card block p-4 transition-transform hover:-translate-y-0.5"
       aria-label={`${subject.name}: ${fmtPct(pct, true)}%, ${v.headline}`}
     >

@@ -115,9 +115,9 @@ export default function StatBreakdownModal({
       onClose={onClose}
       title={tab === "safe-skips" ? "Safe Skips Breakdown" : "At Risk Subjects"}
     >
-      <div className="p-4 sm:p-5">
+      <div className="p-3.5 sm:p-4">
         {/* Tab switch control */}
-        <div className="mb-4 flex rounded-xl bg-ink/5 p-1">
+        <div className="mb-3 flex rounded-xl bg-ink/5 p-1">
           <button
             type="button"
             onClick={() => setTab("safe-skips")}
@@ -152,86 +152,72 @@ export default function StatBreakdownModal({
 
         {/* Tab: SAFE SKIPS */}
         {tab === "safe-skips" && (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {/* Overview header */}
-            <div className="rounded-xl border border-success/30 bg-success-soft/50 p-3.5">
-              <div className="flex items-start gap-2.5">
-                <ShieldCheck className="mt-0.5 shrink-0 text-success" size={18} />
-                <div className="text-xs leading-relaxed text-ink">
+            <div className="rounded-lg border border-success/30 bg-success-soft/40 px-3 py-2 text-xs text-ink">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="shrink-0 text-success" size={16} />
+                <p className="leading-snug">
                   You have{" "}
-                  <span className="font-extrabold text-success">
+                  <span className="font-bold text-success">
                     {totalSafeSkips} safe skip{totalSafeSkips === 1 ? "" : "s"}
                   </span>{" "}
                   available across{" "}
-                  <span className="font-bold">{safeSubjects.length}</span> subject
-                  {safeSubjects.length === 1 ? "" : "s"} while staying at or above
-                  your <span className="font-bold">{attendanceTarget}%</span> target.
-                </div>
+                  <span className="font-semibold">{safeSubjects.length}</span> subject
+                  {safeSubjects.length === 1 ? "" : "s"} while staying at or above your{" "}
+                  <span className="font-semibold">{attendanceTarget}%</span> target.
+                </p>
               </div>
             </div>
 
             {/* List of subjects with safe skips */}
             {safeSubjects.length > 0 ? (
-              <div className="space-y-3">
-                <div className="eyebrow text-faint">
-                  Subjects you can skip ({safeSubjects.length})
-                </div>
+              <div className="flex flex-col gap-2">
+                {safeSubjects.map(({ subject, pct, verdict, afterSkipsPct }) => (
+                  <div
+                    key={subject.id}
+                    className="card border border-line p-3 transition-colors hover:border-line-strong"
+                  >
+                    {/* Subject name */}
+                    <h4 className="font-bold text-ink text-sm sm:text-base leading-snug">
+                      {subject.name}
+                    </h4>
 
-                <div className="flex flex-col gap-2.5">
-                  {safeSubjects.map(({ subject, pct, verdict, afterSkipsPct }) => (
-                    <div
-                      key={subject.id}
-                      className="card border border-line p-3.5 transition-all hover:border-line-strong"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <h4 className="truncate font-bold text-ink">{subject.name}</h4>
-                          <div className="text-xs text-faint">
-                            {subject.code}
-                            {subject.faculty ? ` · ${subject.faculty}` : ""}
-                          </div>
-                        </div>
-
-                        {/* Skips pill badge */}
-                        <div className="shrink-0 text-right">
-                          <span className="inline-flex items-center gap-1 rounded-full bg-success-soft px-2.5 py-1 text-xs font-bold text-success">
-                            <CheckCircle2 size={13} />
-                            Can skip {verdict.skips} {verdict.skips === 1 ? "class" : "classes"}
-                          </span>
-                        </div>
+                    {/* Current attendance & Can skip X */}
+                    <div className="mt-1.5 flex items-center justify-between gap-2">
+                      <div className="text-xs text-muted">
+                        Current:{" "}
+                        <span className="font-semibold text-ink">
+                          {fmtPct(pct, showDecimals)}%
+                        </span>
                       </div>
-
-                      {/* Current & projected stats */}
-                      <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
-                        <div>
-                          Current:{" "}
-                          <span className="font-bold text-ink">
-                            {fmtPct(pct, showDecimals)}%
-                          </span>{" "}
-                          ({subject.attended}/{subject.total})
-                        </div>
-                        <div>
-                          After skips:{" "}
-                          <span className="font-semibold text-success">
-                            {fmtPct(afterSkipsPct, showDecimals)}%
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Link to subject detail */}
-                      <div className="mt-2.5 flex justify-end border-t border-line/60 pt-2">
-                        <Link
-                          href={`/subjects?subject=${encodeURIComponent(subject.id)}`}
-                          onClick={onClose}
-                          className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-pen hover:underline"
-                        >
-                          <span>Manage skips in subject</span>
-                          <ChevronRight size={13} />
-                        </Link>
-                      </div>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-success-soft px-2.5 py-0.5 text-xs font-bold text-success">
+                        <CheckCircle2 size={13} className="shrink-0" />
+                        Can skip {verdict.skips}
+                      </span>
                     </div>
-                  ))}
-                </div>
+
+                    {/* Projected attendance after skips */}
+                    <div className="mt-1 text-xs text-muted">
+                      After skips:{" "}
+                      <span className="font-semibold text-success">
+                        {fmtPct(afterSkipsPct, showDecimals)}%
+                      </span>
+                    </div>
+
+                    {/* Manage skips in subject action */}
+                    <div className="mt-1.5 flex justify-end">
+                      <Link
+                        href={`/subjects?subject=${encodeURIComponent(subject.id)}`}
+                        onClick={onClose}
+                        className="inline-flex items-center gap-0.5 text-xs font-medium text-pen hover:underline"
+                      >
+                        <span>Manage skips in subject</span>
+                        <ChevronRight size={13} />
+                      </Link>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="card px-4 py-8 text-center">
@@ -246,44 +232,43 @@ export default function StatBreakdownModal({
 
             {/* Collapsible section for subjects with 0 skips */}
             {zeroSkipsSubjects.length > 0 && safeSubjects.length > 0 && (
-              <div className="pt-2">
+              <div className="pt-1">
                 <button
                   type="button"
                   onClick={() => setShowZeroSkips((prev) => !prev)}
-                  className="flex w-full items-center justify-between py-1 text-xs font-semibold text-muted hover:text-ink"
+                  className="flex w-full items-center justify-between py-1 text-xs font-medium text-muted hover:text-ink transition-colors"
                 >
                   <span>
                     Subjects with 0 skips remaining ({zeroSkipsSubjects.length})
                   </span>
-                  <span className="text-[11px] text-pen">
+                  <span className="text-xs text-pen font-semibold">
                     {showZeroSkips ? "Hide" : "Show"}
                   </span>
                 </button>
 
                 {showZeroSkips && (
-                  <div className="mt-2 space-y-2 animate-fade-in">
+                  <div className="mt-1.5 space-y-1.5 animate-fade-in">
                     {zeroSkipsSubjects.map(({ subject, pct, verdict }) => (
                       <div
                         key={subject.id}
-                        className="flex items-center justify-between rounded-lg border border-line bg-ink/[0.02] p-2.5 text-xs"
+                        className="flex items-center justify-between rounded-lg border border-line bg-ink/[0.02] px-3 py-2 text-xs"
                       >
-                        <div className="min-w-0">
-                          <div className="truncate font-semibold text-ink">
+                        <div className="min-w-0 pr-2">
+                          <div className="truncate font-medium text-ink">
                             {subject.name}
                           </div>
-                          <div className="text-[11px] text-faint">{subject.code}</div>
                         </div>
                         <div className="shrink-0 text-right">
-                          <div className="font-bold text-ink">
+                          <span className="font-semibold text-ink">
                             {fmtPct(pct, showDecimals)}%
-                          </div>
-                          <div
-                            className={`text-[11px] font-semibold ${
+                          </span>
+                          <span
+                            className={`ml-2 text-[11px] font-medium ${
                               verdict.status === "danger" ? "text-danger" : "text-warn"
                             }`}
                           >
                             {verdict.headline}
-                          </div>
+                          </span>
                         </div>
                       </div>
                     ))}
@@ -466,11 +451,11 @@ export default function StatBreakdownModal({
         )}
 
         {/* Modal footer with Close button */}
-        <div className="mt-5 border-t border-line pt-3 flex justify-end">
+        <div className="mt-3.5 border-t border-line pt-2.5 flex justify-end">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg bg-ink px-4 py-2 text-xs font-bold text-paper hover:bg-ink/90 transition-colors"
+            className="rounded-lg bg-ink px-4 py-1.5 text-xs font-bold text-paper hover:bg-ink/90 transition-colors"
           >
             Close
           </button>
