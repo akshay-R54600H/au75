@@ -55,5 +55,6 @@ In-app *Feedback* link → https://tally.so/r/aQ1WNX
 
 ## License
 
-Private project. AU75 is an independent student project and is not
-affiliated with Alliance University.
+[MIT](LICENSE) © 2026 pradeepzxi
+
+AU75 is an independent student project and is not affiliated with Alliance University.
