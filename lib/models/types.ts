@@ -53,6 +53,13 @@ export interface AcademicDay {
   description?: string;
 }
 
+export type NotificationOffsetMinutes = 5 | 10 | 15 | 30;
+
+export interface NotificationSettings {
+  enabled: boolean;
+  offsetMinutes: NotificationOffsetMinutes;
+}
+
 export interface AppSettings {
   attendanceTarget: number; // e.g. 75
   requirement: AttendanceRequirement;
@@ -60,6 +67,7 @@ export interface AppSettings {
   showDecimals: boolean;
   milestones: ExamMilestone[];
   lastSyncedAt?: string; // ISO datetime — undefined ⇒ demo data
+  notifications?: NotificationSettings;
 }
 
 export interface AppData {

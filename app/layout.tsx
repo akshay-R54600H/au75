@@ -5,6 +5,8 @@ import { AppProvider } from "@/lib/context/AppContext";
 import TncConsent from "@/components/tnc/TncConsent";
 import ServiceWorker from "@/components/pwa/ServiceWorker";
 import MaintenanceGuard from "@/components/maintenance/MaintenanceGuard";
+import AnalyticsTracker from "@/components/analytics/AnalyticsTracker";
+import NotificationManager from "@/components/notifications/NotificationManager";
 import { Analytics } from "@vercel/analytics/next";
 import { THEME_STORAGE_KEY } from "@/lib/themes";
 
@@ -47,7 +49,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AppProvider>
           <TncConsent />
           <MaintenanceGuard>{children}</MaintenanceGuard>
+          <NotificationManager />
         </AppProvider>
+        <AnalyticsTracker />
         <ServiceWorker />
         <Analytics />
       </body>

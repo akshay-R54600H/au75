@@ -179,9 +179,15 @@ By using AU75, you agree, to the extent permitted by applicable law, to indemnif
 
 Your use of AU75 may involve the processing of information necessary to provide the application's functionality.
 
-Any collection, storage, processing, or use of personal information will be governed by the AU75 Privacy Policy.
+AU75 collects anonymous aggregate usage statistics to understand application usage and synchronization reliability. These statistics do not include student credentials, attendance information, or personally identifiable information.
 
-Users should review the Privacy Policy before using the application.
+When using AU75:
+
+AU75 generates a random anonymous installation identifier locally on your browser.
+This anonymous identifier is not linked to your name, USN, student ID, IP address, or device fingerprint.
+Your student credentials (USN and ERP password) are used only in-memory to communicate directly with the official university portal during active sync operations and are never stored on our servers.
+Your attendance records, subjects, timetable, and calculated skip predictions are stored locally on your device within your browser's private database.
+AU75 does not collect, store, access, expose, or derive student-specific academic or personal data.
 
 15. Governing Law
 
