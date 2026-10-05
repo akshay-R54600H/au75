@@ -30,7 +30,7 @@ export default function SubjectCard({
   return (
     <Link
       href={`${baseHref}?subject=${encodeURIComponent(subject.id)}`}
-      className="card block p-4 transition-transform hover:-translate-y-0.5"
+      className="card group block p-4 transition-transform hover:-translate-y-0.5"
       aria-label={`${subject.name}: ${fmtPct(pct, true)}%, ${v.headline}`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -52,9 +52,12 @@ export default function SubjectCard({
         <ProgressBar value={pct} target={attendanceTarget} label={`${subject.name} attendance`} />
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <span className={`text-sm font-bold ${TONE[v.status]}`}>{v.headline}</span>
-        <ChevronRight size={16} className="text-faint" />
+        <span className="inline-flex items-center gap-1 text-xs font-semibold text-pen group-hover:underline">
+          <span>Manage skips in subject</span>
+          <ChevronRight size={15} className="shrink-0 text-faint group-hover:text-pen transition-colors" />
+        </span>
       </div>
     </Link>
   );

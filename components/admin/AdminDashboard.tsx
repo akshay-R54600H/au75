@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, type FormEvent } from "react";
 import Logo from "@/components/ui/Logo";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
+import AdminAnalytics from "@/components/admin/AdminAnalytics";
 import {
   Radio,
   CheckCircle2,
@@ -410,6 +411,9 @@ export default function AdminDashboard({ adminEmail, onLogout }: AdminDashboardP
             </div>
           </section>
         </div>
+
+        {/* Usage Analytics Section */}
+        <AdminAnalytics onSessionExpired={onLogout} />
 
         {/* Card 3: Customizable Maintenance Message */}
         <section className="card p-6 sm:p-8 shadow-sm border-2 border-line">

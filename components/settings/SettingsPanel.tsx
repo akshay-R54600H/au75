@@ -2,12 +2,23 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Plus, Trash2, Download, Upload, LogOut, ExternalLink } from "lucide-react";
+import { Plus, Trash2, Download, Upload, LogOut, ExternalLink, Bell, CheckCircle2, AlertCircle } from "lucide-react";
 import { useApp } from "@/lib/context/AppContext";
 import { forgetSavedLogin, loadQuickLogin } from "@/lib/platform/credentials";
 import { THEMES } from "@/lib/themes";
 import { APP_VERSION } from "@/lib/tnc";
 import type { AppSettings, ExamMilestone } from "@/lib/models/types";
+import {
+  NOTIFICATION_OFFSET_OPTIONS,
+  DEFAULT_NOTIFICATION_OFFSET_MINUTES,
+  type NotificationOffsetMinutes,
+} from "@/lib/notifications/types";
+import {
+  isNotificationSupported,
+  getNotificationPermission,
+  requestNotificationPermission,
+  sendTestNotification,
+} from "@/lib/notifications/manager";
 import Button from "@/components/ui/Button";
 import InstallButton from "@/components/pwa/InstallButton";
 
@@ -93,6 +104,100 @@ export default function SettingsPanel() {
   function flash(m: string) {
     setMsg(m);
     setTimeout(() => setMsg(null), 2500);
+  }
+
+  const notifConfig = settings.notifications ?? {
+    enabled: true,
+    offsetMinutes: DEFAULT_NOTIFICATION_OFFSET_MINUTES,
+  };
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission | "unsupported">("default");
+  const [testSending, setTestSending] = useState(false);
+
+  useEffect(() => {
+    setNotifPermission(getNotificationPermission());
+  }, []);
+
+  async function handleRequestPermission() {
+    const perm = await requestNotificationPermission();
+    setNotifPermission(perm);
+    if (perm === "granted") {
+      flash("Notification permission granted!");
+    } else if (perm === "denied") {
+      flash("Notification permission was denied in browser settings.");
+    }
+  }
+
+  async function handleToggleNotifications(enabled: boolean) {
+    if (enabled) {
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem("au75_notif_manually_disabled");
+      }
+      if (!isNotificationSupported()) {
+        flash("Notifications are not supported on this browser/device.");
+        return;
+      }
+      let perm = getNotificationPermission();
+      if (perm !== "granted") {
+        perm = await requestNotificationPermission();
+        setNotifPermission(perm);
+      }
+      updateSettings({
+        notifications: {
+          enabled: true,
+          offsetMinutes: notifConfig.offsetMinutes || DEFAULT_NOTIFICATION_OFFSET_MINUTES,
+        },
+      });
+      if (perm === "granted") {
+        flash(`Class notifications enabled (${notifConfig.offsetMinutes || 5} min before class).`);
+      } else {
+        flash("Class notifications enabled. Please allow notifications when prompted.");
+      }
+    } else {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("au75_notif_manually_disabled", "true");
+      }
+      updateSettings({
+        notifications: {
+          enabled: false,
+          offsetMinutes: notifConfig.offsetMinutes || DEFAULT_NOTIFICATION_OFFSET_MINUTES,
+        },
+      });
+      flash("Class notifications disabled.");
+    }
+  }
+
+  function handleSelectOffset(offset: NotificationOffsetMinutes) {
+    updateSettings({
+      notifications: {
+        enabled: notifConfig.enabled,
+        offsetMinutes: offset,
+      },
+    });
+    flash(`Notification timing set to ${offset} minutes before class.`);
+  }
+
+  async function handleTestNotification() {
+    setTestSending(true);
+    try {
+      if (!isNotificationSupported()) {
+        flash("Notifications aren't supported on this browser/device.");
+        return;
+      }
+      let perm = getNotificationPermission();
+      if (perm !== "granted") {
+        perm = await requestNotificationPermission();
+        setNotifPermission(perm);
+      }
+      if (perm === "granted") {
+        const sent = await sendTestNotification();
+        if (sent) flash("Test notification sent! Check your notifications.");
+        else flash("Could not trigger test notification.");
+      } else {
+        flash("Cannot send test notification: permission blocked.");
+      }
+    } finally {
+      setTestSending(false);
+    }
   }
 
   function onTarget(v: string) {
@@ -197,6 +302,110 @@ export default function SettingsPanel() {
         <Row label="Phone app" hint="Add AU75 to your home screen">
           <InstallButton size="sm" />
         </Row>
+      </Section>
+
+      <Section title="Notifications" hint="Receive an automatic alert before each scheduled class based on your timetable.">
+        <Row label="Class Notifications" hint="Receive a notification before each scheduled class">
+          <Toggle
+            checked={notifConfig.enabled}
+            onChange={handleToggleNotifications}
+            label="Class Notifications"
+          />
+        </Row>
+
+        {/* Permission Request Banner if pending */}
+        {notifConfig.enabled && notifPermission === "default" && (
+          <div className="my-2.5 rounded-xl border border-marker/40 bg-marker-soft/60 p-3 text-xs text-ink flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 animate-fade-in">
+            <div className="flex items-center gap-2">
+              <Bell size={16} className="text-marker shrink-0" />
+              <span>Allow browser notifications to receive automatic class alerts.</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleRequestPermission}
+              className="shrink-0 rounded-lg bg-marker px-3 py-1.5 text-xs font-bold text-paper shadow-xs hover:opacity-95 transition"
+            >
+              Allow Notifications
+            </button>
+          </div>
+        )}
+
+        {/* Warning if blocked */}
+        {notifPermission === "denied" && (
+          <div className="my-2.5 rounded-xl border border-danger/30 bg-danger-soft p-3 text-xs text-danger flex items-start gap-2 animate-fade-in">
+            <AlertCircle size={15} className="shrink-0 mt-0.5" />
+            <div>
+              <strong className="block font-bold">Notifications are blocked by your browser/device.</strong>
+              <span>Enable notifications from your browser/device settings to receive class alerts.</span>
+            </div>
+          </div>
+        )}
+
+        {/* Warning if unsupported */}
+        {notifPermission === "unsupported" && (
+          <div className="my-2.5 rounded-xl border border-warning/30 bg-warning-soft p-3 text-xs text-warning flex items-start gap-2 animate-fade-in">
+            <AlertCircle size={15} className="shrink-0 mt-0.5" />
+            <span>Notifications aren&apos;t supported on this browser/device.</span>
+          </div>
+        )}
+
+        {/* Timing Selection (5 minutes default) */}
+        <div className="border-t border-line pt-3 mt-2">
+          <div className="text-sm font-semibold text-ink mb-0.5">Notify Before Class</div>
+          <p className="text-xs text-muted mb-2.5">Choose when you want to receive the notification.</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {NOTIFICATION_OFFSET_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => handleSelectOffset(opt.value)}
+                className={`flex flex-col sm:flex-row items-center justify-center gap-1 rounded-xl border-2 py-2 px-3 text-xs font-bold transition ${
+                  notifConfig.offsetMinutes === opt.value
+                    ? "border-marker bg-marker-soft text-marker font-extrabold shadow-xs"
+                    : "border-paper-edge bg-surface text-muted hover:border-pen/40 hover:text-ink"
+                }`}
+              >
+                <span>{opt.label}</span>
+                {opt.value === 5 && (
+                  <span className="text-[10px] uppercase font-bold opacity-80">(Default)</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Status message and test button */}
+        <div className="mt-3.5 pt-3 border-t border-line flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="text-xs">
+            {notifConfig.enabled && notifPermission === "granted" ? (
+              <span className="flex items-center gap-1.5 text-success font-semibold">
+                <CheckCircle2 size={14} className="shrink-0" />
+                <span>You&apos;ll be notified {notifConfig.offsetMinutes} minutes before your scheduled classes.</span>
+              </span>
+            ) : notifConfig.enabled && notifPermission === "denied" ? (
+              <span className="text-danger font-medium">Notifications blocked by browser.</span>
+            ) : notifConfig.enabled && notifPermission === "default" ? (
+              <span className="text-amber-600 font-medium flex items-center gap-1.5">
+                <AlertCircle size={14} className="shrink-0 text-amber-500" />
+                <span>Class notifications enabled (browser permission pending).</span>
+              </span>
+            ) : (
+              <span className="text-muted">Class notifications are disabled.</span>
+            )}
+          </div>
+
+          <Button
+            variant="secondary"
+            size="sm"
+            type="button"
+            onClick={handleTestNotification}
+            disabled={testSending}
+            className="text-xs shrink-0"
+          >
+            <Bell size={13} />
+            <span>{testSending ? "Sending…" : "Send Test Notification"}</span>
+          </Button>
+        </div>
       </Section>
 
       <Section title="Your data" hint="Everything lives in this browser. Export a backup before switching devices.">

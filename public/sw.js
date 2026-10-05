@@ -43,7 +43,6 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-  const isStatic = url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/icons/") || /\.(png|svg|ico|woff2?)$/.test(url.pathname);
   if (isStatic) {
     e.respondWith(
       caches.match(request).then(
@@ -58,3 +57,52 @@ self.addEventListener("fetch", (e) => {
     );
   }
 });
+
+// ------------------------------------------------------------
+// Notification Click: Open or focus AU75
+// ------------------------------------------------------------
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+
+  e.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if ("focus" in client) {
+          return client.focus();
+        }
+      }
+      if (self.clients.openWindow) {
+        return self.clients.openWindow("/calendar");
+      }
+    })
+  );
+});
+
+// ------------------------------------------------------------
+// Push notification handler (where supported)
+// ------------------------------------------------------------
+self.addEventListener("push", (e) => {
+  if (!e.data) return;
+  try {
+    const payload = e.data.json();
+    const title = payload.title || "🔔 Upcoming Class";
+    const options = {
+      body: payload.body || "You have an upcoming class scheduled.",
+      icon: "/icon.svg",
+      badge: "/icon.svg",
+      tag: payload.tag || "au75-class-notification",
+      data: payload.data || {},
+    };
+    e.waitUntil(self.registration.showNotification(title, options));
+  } catch {
+    const text = e.data.text();
+    e.waitUntil(
+      self.registration.showNotification("🔔 AU75 Notifications", {
+        body: text || "Upcoming class alert.",
+        icon: "/icon.svg",
+        badge: "/icon.svg",
+      })
+    );
+  }
+});
+
