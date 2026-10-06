@@ -6,6 +6,7 @@
 import { openDB, type IDBPDatabase } from "idb";
 import type { AppData, AppSettings, PredictionState } from "@/lib/models/types";
 import { MOCK_SUBJECTS, MOCK_SESSIONS, MOCK_ACADEMIC_DAYS, DEFAULT_SETTINGS } from "@/lib/mock/data";
+import { REAL_SUBJECTS, REAL_SESSIONS } from "@/lib/portal/realTimetable";
 import { isThemeId } from "@/lib/themes";
 
 const DB_NAME = "attendance-predictor";
@@ -103,9 +104,24 @@ export async function loadAppData(): Promise<AppData> {
     })(),
   };
 
+  // If no saved subjects exist, or if the stored subjects are the stale mock demo data
+  // (e.g. Operating Systems / E1CSA318 instead of Leadership and Management Skills / E1CSA317),
+  // migrate to the real student portal subjects and timetable.
+  const isStaleMockData =
+    subjects.length === 0 ||
+    (subjects.some((s) => s.code === "E1CSA318") && !subjects.some((s) => s.code === "E1CSA317"));
+
+  const finalSubjects = isStaleMockData ? REAL_SUBJECTS : subjects;
+  const finalSessions = isStaleMockData ? REAL_SESSIONS : (sessions.length > 0 ? sessions : REAL_SESSIONS);
+
+  if (isStaleMockData && typeof window !== "undefined") {
+    clearAndFill("subjects", REAL_SUBJECTS).catch(console.error);
+    clearAndFill("sessions", REAL_SESSIONS).catch(console.error);
+  }
+
   return {
-    subjects: subjects.length > 0 ? subjects : MOCK_SUBJECTS,
-    sessions: sessions.length > 0 ? sessions : MOCK_SESSIONS,
+    subjects: finalSubjects,
+    sessions: finalSessions,
     academicDays: academicDays.length > 0 ? academicDays : MOCK_ACADEMIC_DAYS,
     predictions,
     settings,
@@ -160,6 +176,8 @@ export async function clearAllData(): Promise<void> {
     db.clear("predictions"),
     // Don't clear settings — preserve preferences
   ]);
+  await clearAndFill("subjects", REAL_SUBJECTS);
+  await clearAndFill("sessions", REAL_SESSIONS);
 }
 
 export async function exportData(): Promise<AppData> {

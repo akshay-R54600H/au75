@@ -14,12 +14,16 @@ import {
   isNotificationSupported,
   getNotificationPermission,
 } from "@/lib/notifications/manager";
+import {
+  syncDevicePushSchedule,
+  unsubscribeFromPushNotifications,
+} from "@/lib/notifications/pushClient";
 import { DEFAULT_NOTIFICATION_OFFSET_MINUTES } from "@/lib/notifications/types";
 
 /**
  * Global background notification worker.
  * Checks upcoming classes based on local timetable and triggers notifications at the requested offset.
- * Includes background worker ticker and interactive permission prompt.
+ * Synchronizes with Web Push worker to deliver notifications even when the app is completely closed.
  */
 export default function NotificationManager() {
   const { state } = useApp();
@@ -59,12 +63,32 @@ export default function NotificationManager() {
     }
   }, []);
 
+  // Synchronize upcoming schedule with background push worker
+  useEffect(() => {
+    if (permission === "granted" && isEnabled && sessions.length > 0) {
+      syncDevicePushSchedule({
+        sessions,
+        academicDays,
+        offsetMinutes,
+      }).catch(() => {});
+    } else if (!isEnabled) {
+      unsubscribeFromPushNotifications().catch(() => {});
+    }
+  }, [permission, isEnabled, sessions, academicDays, offsetMinutes]);
+
   const handleRequestPermission = useCallback(async () => {
     try {
       const perm = await requestNotificationPermission();
       setPermission(perm);
+      if (perm === "granted") {
+        syncDevicePushSchedule({
+          sessions,
+          academicDays,
+          offsetMinutes,
+        }).catch(() => {});
+      }
     } catch {}
-  }, []);
+  }, [sessions, academicDays, offsetMinutes]);
 
   // Main evaluation and dispatch function
   const checkAndDispatchDueNotifications = useCallback(async () => {
@@ -204,6 +228,8 @@ export default function NotificationManager() {
     window.addEventListener("online", onWakeup);
     window.addEventListener("pageshow", onWakeup);
 
+    const activeScheduledMap = scheduledMapRef.current;
+
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -213,10 +239,10 @@ export default function NotificationManager() {
         workerRef.current.terminate();
         workerRef.current = null;
       }
-      for (const [, entry] of scheduledMapRef.current) {
+      for (const [, entry] of activeScheduledMap) {
         clearTimeout(entry.timeoutId);
       }
-      scheduledMapRef.current.clear();
+      activeScheduledMap.clear();
 
       window.removeEventListener("visibilitychange", onWakeup);
       window.removeEventListener("focus", onWakeup);

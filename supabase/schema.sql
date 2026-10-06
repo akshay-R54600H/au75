@@ -135,3 +135,62 @@ RETURNS void LANGUAGE sql AS $$
   DELETE FROM public.app_analytics_events
   WHERE created_at < NOW() - INTERVAL '30 days';
 $$;
+
+-- ==============================================================================
+-- AU75 Automatic Web Push Notifications Schema
+-- ==============================================================================
+
+-- 12. Push subscriptions table (stores anonymous device endpoints)
+CREATE TABLE IF NOT EXISTS public.push_subscriptions (
+  endpoint TEXT PRIMARY KEY,
+  subscription_json JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 13. Scheduled class notification alerts (stores upcoming class trigger timestamps)
+CREATE TABLE IF NOT EXISTS public.scheduled_push_alerts (
+  id TEXT PRIMARY KEY,
+  endpoint TEXT NOT NULL REFERENCES public.push_subscriptions(endpoint) ON DELETE CASCADE,
+  trigger_at BIGINT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  tag TEXT NOT NULL,
+  delivered BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_push_alerts_trigger
+  ON public.scheduled_push_alerts (trigger_at, delivered);
+
+CREATE INDEX IF NOT EXISTS idx_push_alerts_endpoint
+  ON public.scheduled_push_alerts (endpoint);
+
+-- Enable Row Level Security (RLS)
+ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.scheduled_push_alerts ENABLE ROW LEVEL SECURITY;
+
+-- Allow service_role key full CRUD access (used only server-side by AU75 API routes)
+DROP POLICY IF EXISTS "Allow service_role full access to push_subscriptions" ON public.push_subscriptions;
+CREATE POLICY "Allow service_role full access to push_subscriptions"
+  ON public.push_subscriptions
+  FOR ALL
+  TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow service_role full access to scheduled_push_alerts" ON public.scheduled_push_alerts;
+CREATE POLICY "Allow service_role full access to scheduled_push_alerts"
+  ON public.scheduled_push_alerts
+  FOR ALL
+  TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+-- Optional pruning function for old delivered alerts
+CREATE OR REPLACE FUNCTION public.prune_old_delivered_push_alerts()
+RETURNS void LANGUAGE sql AS $$
+  DELETE FROM public.scheduled_push_alerts
+  WHERE delivered = TRUE AND created_at < NOW() - INTERVAL '2 days';
+$$;
+
