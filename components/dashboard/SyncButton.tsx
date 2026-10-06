@@ -147,7 +147,26 @@ export default function SyncButton({ compact = false }: { compact?: boolean }) {
     else forgetSavedLogin();
 
     const subjects = data.subjects.length ? data.subjects : state.subjects;
-    const sessions = data.sessions.length ? data.sessions : state.sessions;
+
+    // Filter incoming sessions so that only classes belonging to the student's enrolled subjects are stored
+    const enrolledCodes = new Set(subjects.map((s) => s.code.trim().toUpperCase().replace(/\s+/g, "")));
+    const enrolledIds = new Set(subjects.map((s) => s.id.trim().toLowerCase()));
+    const enrolledNames = new Set(subjects.map((s) => s.name.trim().toLowerCase().replace(/\s+/g, " ")));
+
+    const rawSessions = Array.isArray(data.sessions) ? data.sessions : [];
+    const validSessions = rawSessions.filter((s) => {
+      const code = (s.subjectCode || "").trim().toUpperCase().replace(/\s+/g, "");
+      const sid = (s.subjectId || "").trim().toLowerCase();
+      const sname = (s.subjectName || "").trim().toLowerCase().replace(/\s+/g, " ");
+      return (
+        (code && enrolledCodes.has(code)) ||
+        (sid && (enrolledIds.has(sid) || enrolledIds.has(`portal-${sid}`))) ||
+        (sname && enrolledNames.has(sname))
+      );
+    });
+
+    // When syncing from portal, use the student's valid sessions without retaining demo classes
+    const sessions = validSessions;
     await mergeSyncData(subjects, sessions, state.academicDays, state.predictions);
     await importAppData({
       subjects,

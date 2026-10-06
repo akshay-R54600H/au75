@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Bell, CheckCircle2, X } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { useApp } from "@/lib/context/AppContext";
 import {
   generateSchedule,
@@ -10,13 +10,11 @@ import {
 } from "@/lib/notifications/scheduler";
 import {
   showBrowserNotification,
-  requestNotificationPermission,
   isNotificationSupported,
   getNotificationPermission,
 } from "@/lib/notifications/manager";
 import {
   syncDevicePushSchedule,
-  unsubscribeFromPushNotifications,
 } from "@/lib/notifications/pushClient";
 import { DEFAULT_NOTIFICATION_OFFSET_MINUTES } from "@/lib/notifications/types";
 
@@ -24,10 +22,15 @@ import { DEFAULT_NOTIFICATION_OFFSET_MINUTES } from "@/lib/notifications/types";
  * Global background notification worker.
  * Checks upcoming classes based on local timetable and triggers notifications at the requested offset.
  * Synchronizes with Web Push worker to deliver notifications even when the app is completely closed.
+ * Strictly non-intrusive: does NOT render unprompted popup banners or ask for permission repeatedly.
+ * Completely disabled on administrative pages (/admin, /admin/...).
  */
 export default function NotificationManager() {
-  const { state } = useApp();
-  const { sessions, academicDays, settings } = state;
+  const pathname = usePathname();
+  const isAdmin = Boolean(pathname?.startsWith("/admin"));
+
+  const { state, isDemo } = useApp();
+  const { sessions, subjects, academicDays, settings } = state;
   const notifications = settings.notifications;
   const isEnabled = notifications?.enabled ?? true;
   const offsetMinutes = notifications?.offsetMinutes ?? DEFAULT_NOTIFICATION_OFFSET_MINUTES;
@@ -35,16 +38,15 @@ export default function NotificationManager() {
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">(() =>
     isNotificationSupported() ? getNotificationPermission() : "unsupported"
   );
-  const [dismissedBanner, setDismissedBanner] = useState(false);
 
   // Map to retain active scheduled exact timers: id -> { timeoutId, dueMs }
   const scheduledMapRef = useRef<Map<string, { timeoutId: NodeJS.Timeout; dueMs: number }>>(new Map());
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const workerRef = useRef<Worker | null>(null);
 
-  // Sync permission status
+  // Sync permission status (pure read-only listener, does NOT trigger prompts)
   useEffect(() => {
-    if (!isNotificationSupported()) {
+    if (isAdmin || !isNotificationSupported()) {
       setPermission("unsupported");
       return;
     }
@@ -61,44 +63,42 @@ export default function NotificationManager() {
         })
         .catch(() => {});
     }
-  }, []);
+  }, [isAdmin]);
 
   // Synchronize upcoming schedule with background push worker
   useEffect(() => {
-    if (permission === "granted" && isEnabled && sessions.length > 0) {
+    if (isAdmin) return;
+    // Only schedule push notifications for real synced student timetable, NEVER for demo data!
+    if (permission === "granted" && isEnabled && !isDemo && sessions.length > 0) {
       syncDevicePushSchedule({
         sessions,
+        subjects,
         academicDays,
         offsetMinutes,
       }).catch(() => {});
-    } else if (!isEnabled) {
-      unsubscribeFromPushNotifications().catch(() => {});
+    } else if (!isEnabled || isDemo || sessions.length === 0) {
+      // Clear push schedule so no stale or demo alerts trigger on the device
+      syncDevicePushSchedule({
+        sessions: [],
+        subjects: [],
+        academicDays,
+        offsetMinutes,
+      }).catch(() => {});
     }
-  }, [permission, isEnabled, sessions, academicDays, offsetMinutes]);
-
-  const handleRequestPermission = useCallback(async () => {
-    try {
-      const perm = await requestNotificationPermission();
-      setPermission(perm);
-      if (perm === "granted") {
-        syncDevicePushSchedule({
-          sessions,
-          academicDays,
-          offsetMinutes,
-        }).catch(() => {});
-      }
-    } catch {}
-  }, [sessions, academicDays, offsetMinutes]);
+  }, [isAdmin, permission, isEnabled, isDemo, sessions, subjects, academicDays, offsetMinutes]);
 
   // Main evaluation and dispatch function
   const checkAndDispatchDueNotifications = useCallback(async () => {
-    if (typeof window === "undefined" || !isNotificationSupported()) return;
+    if (isAdmin || typeof window === "undefined" || !isNotificationSupported()) return;
     if (Notification.permission !== "granted") return;
+    // Do NOT notify for demo mock classes! Only notify for user's real synced timetable!
+    if (isDemo || sessions.length === 0) return;
 
     const now = Date.now();
     // Look back 2 hours to catch any class currently starting or recently due
     const schedule = generateSchedule({
       sessions,
+      subjects,
       academicDays,
       offsetMinutes,
       nowMs: now - 2 * 60 * 60 * 1000,
@@ -164,17 +164,24 @@ export default function NotificationManager() {
         }
       }
     }
-  }, [sessions, academicDays, offsetMinutes]);
+  }, [isAdmin, isDemo, sessions, subjects, academicDays, offsetMinutes]);
 
   // Lifecycle effect: sets up timers and listeners
   useEffect(() => {
-    // Clear previously scheduled timeouts when dependencies (offset/sessions) change
+    // Clear previously scheduled timeouts when dependencies (offset/sessions) change or when in demo mode or admin
     for (const [, entry] of scheduledMapRef.current) {
       clearTimeout(entry.timeoutId);
     }
     scheduledMapRef.current.clear();
 
-    if (!isEnabled || typeof window === "undefined" || permission !== "granted") {
+    if (
+      isAdmin ||
+      !isEnabled ||
+      isDemo ||
+      sessions.length === 0 ||
+      typeof window === "undefined" ||
+      permission !== "granted"
+    ) {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
@@ -249,55 +256,8 @@ export default function NotificationManager() {
       window.removeEventListener("online", onWakeup);
       window.removeEventListener("pageshow", onWakeup);
     };
-  }, [isEnabled, offsetMinutes, sessions, academicDays, permission, checkAndDispatchDueNotifications]);
+  }, [isAdmin, isEnabled, isDemo, offsetMinutes, sessions, subjects, academicDays, permission, checkAndDispatchDueNotifications]);
 
-  // If notifications are enabled but permission is not yet granted, render an actionable banner
-  if (!isEnabled || permission !== "default" || dismissedBanner) {
-    return null;
-  }
-
-  return (
-    <div
-      role="region"
-      aria-label="Notification Permission"
-      className="fixed bottom-16 sm:bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-50 rounded-2xl border-2 border-marker bg-surface p-4 shadow-xl animate-fade-in"
-    >
-      <div className="flex items-start gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-marker/15 text-marker">
-          <Bell size={20} className="animate-pulse" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h4 className="text-sm font-bold text-ink">Turn on class notifications</h4>
-          <p className="mt-0.5 text-xs text-muted leading-relaxed">
-            Get an automatic reminder on your device {offsetMinutes} minutes before each class starts.
-          </p>
-          <div className="mt-3 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleRequestPermission}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-marker px-3.5 py-1.5 text-xs font-bold text-paper shadow-sm hover:opacity-95 transition"
-            >
-              <CheckCircle2 size={14} />
-              <span>Allow Notifications</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setDismissedBanner(true)}
-              className="rounded-xl px-2.5 py-1.5 text-xs font-semibold text-muted hover:text-ink hover:bg-line transition"
-            >
-              Later
-            </button>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => setDismissedBanner(true)}
-          aria-label="Close notification banner"
-          className="rounded-lg p-1 text-faint hover:text-ink hover:bg-line transition"
-        >
-          <X size={16} />
-        </button>
-      </div>
-    </div>
-  );
+  // Non-intrusive background manager: renders no UI banners or unprompted popups
+  return null;
 }

@@ -231,8 +231,8 @@ export default function SettingsPanel() {
         setNotifPermission(perm);
       }
       if (perm === "granted") {
-        const sent = await sendTodayClassAlert();
-        if (sent) flash("Today's real class notification sent!");
+        const sent = await sendTodayClassAlert(state.sessions, state.subjects);
+        if (sent) flash("Today's class notification sent!");
         else flash("Could not trigger class notification.");
       } else {
         flash("Cannot send notification: permission blocked.");

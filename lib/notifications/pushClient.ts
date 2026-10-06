@@ -4,7 +4,7 @@
 // upcoming timetable alerts with the background delivery worker.
 // ============================================================
 
-import type { ClassSession, AcademicDay } from "@/lib/models/types";
+import type { ClassSession, AcademicDay, Subject } from "@/lib/models/types";
 import { type NotificationOffsetMinutes, DEFAULT_NOTIFICATION_OFFSET_MINUTES } from "./types";
 import { generateSchedule } from "./scheduler";
 
@@ -91,6 +91,7 @@ export async function subscribeToPushNotifications(): Promise<PushSubscription |
  */
 export async function syncDevicePushSchedule(params: {
   sessions: ClassSession[];
+  subjects?: Subject[];
   academicDays?: AcademicDay[];
   offsetMinutes?: NotificationOffsetMinutes;
 }): Promise<boolean> {
@@ -99,6 +100,7 @@ export async function syncDevicePushSchedule(params: {
 
   const {
     sessions,
+    subjects,
     academicDays = [],
     offsetMinutes = DEFAULT_NOTIFICATION_OFFSET_MINUTES,
   } = params;
@@ -114,6 +116,7 @@ export async function syncDevicePushSchedule(params: {
     const now = Date.now();
     const fullSchedule = generateSchedule({
       sessions,
+      subjects,
       academicDays,
       offsetMinutes,
       nowMs: now,

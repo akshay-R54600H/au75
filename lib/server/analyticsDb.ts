@@ -81,6 +81,16 @@ interface MemoryStore {
   dailyStats: Map<string, AnalyticsDailyStatsRecord>;
   dailyUserActive: Set<string>; // "${date}:${anonymous_id}"
   dailyUserSynced: Set<string>; // "${date}:${anonymous_id}"
+  lastLoadedMtime?: number;
+}
+
+interface DiskPayload {
+  users?: Array<[string, AnalyticsUserRecord]>;
+  events?: AnalyticsEventRecord[];
+  dailyStats?: Array<[string, AnalyticsDailyStatsRecord]>;
+  dailyUserActive?: string[];
+  dailyUserSynced?: string[];
+  savedAt?: string;
 }
 
 function isTestEnvironment(): boolean {
@@ -99,30 +109,107 @@ function getStoreFilePath(): string {
 
 let diskWriteSupported = true;
 
-function loadStoreFromDisk(): MemoryStore | null {
+/**
+ * Merges raw payload into target MemoryStore without losing existing records.
+ * Solves multi-process desynchronization and data loss across Next.js workers.
+ */
+function mergePayloadIntoStore(target: MemoryStore, data: DiskPayload): void {
+  if (Array.isArray(data.users)) {
+    for (const [id, user] of data.users) {
+      if (!id || !user) continue;
+      const existing = target.users.get(id);
+      if (!existing) {
+        target.users.set(id, { ...user });
+      } else {
+        // Retain earliest first_seen_at
+        if (new Date(user.first_seen_at).getTime() < new Date(existing.first_seen_at).getTime()) {
+          existing.first_seen_at = user.first_seen_at;
+        }
+        // Retain latest last_seen_at
+        if (new Date(user.last_seen_at).getTime() > new Date(existing.last_seen_at).getTime()) {
+          existing.last_seen_at = user.last_seen_at;
+        }
+        existing.has_synced = Boolean(existing.has_synced || user.has_synced);
+        if (user.first_synced_at) {
+          if (
+            !existing.first_synced_at ||
+            new Date(user.first_synced_at).getTime() < new Date(existing.first_synced_at).getTime()
+          ) {
+            existing.first_synced_at = user.first_synced_at;
+          }
+        }
+        existing.sync_count = Math.max(existing.sync_count || 0, user.sync_count || 0);
+      }
+    }
+  }
+
+  if (Array.isArray(data.events)) {
+    const existingKeys = new Set(
+      target.events.map((e) => `${e.created_at}:${e.anonymous_id}:${e.event_type}`)
+    );
+    for (const ev of data.events) {
+      const key = `${ev.created_at}:${ev.anonymous_id}:${ev.event_type}`;
+      if (!existingKeys.has(key)) {
+        existingKeys.add(key);
+        target.events.push(ev);
+      }
+    }
+    target.events.sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+    if (target.events.length > 500) {
+      target.events = target.events.slice(-500);
+    }
+  }
+
+  if (Array.isArray(data.dailyUserActive)) {
+    for (const item of data.dailyUserActive) {
+      target.dailyUserActive.add(item);
+    }
+  }
+
+  if (Array.isArray(data.dailyUserSynced)) {
+    for (const item of data.dailyUserSynced) {
+      target.dailyUserSynced.add(item);
+    }
+  }
+
+  if (Array.isArray(data.dailyStats)) {
+    for (const [date, stat] of data.dailyStats) {
+      if (!date || !stat) continue;
+      const existing = target.dailyStats.get(date);
+      if (!existing) {
+        target.dailyStats.set(date, { ...stat });
+      } else {
+        existing.unique_users = Math.max(existing.unique_users || 0, stat.unique_users || 0);
+        existing.sync_users = Math.max(existing.sync_users || 0, stat.sync_users || 0);
+        existing.successful_syncs = Math.max(existing.successful_syncs || 0, stat.successful_syncs || 0);
+        existing.failed_syncs = Math.max(existing.failed_syncs || 0, stat.failed_syncs || 0);
+        existing.sync_attempts = Math.max(existing.sync_attempts || 0, stat.sync_attempts || 0);
+        if (new Date(stat.updated_at).getTime() > new Date(existing.updated_at).getTime()) {
+          existing.updated_at = stat.updated_at;
+        }
+      }
+    }
+  }
+}
+
+/** Synchronize memory store with latest state on disk if modified */
+function syncStoreWithDisk(store: MemoryStore): void {
   try {
     const filePath = getStoreFilePath();
-    if (!fs.existsSync(filePath)) return null;
+    if (!fs.existsSync(filePath)) return;
+    const stat = fs.statSync(filePath);
+    if (store.lastLoadedMtime && stat.mtimeMs <= store.lastLoadedMtime) {
+      return;
+    }
     const raw = fs.readFileSync(filePath, "utf-8");
-    if (!raw.trim()) return null;
-    const data = JSON.parse(raw);
-
-    const users = new Map<string, AnalyticsUserRecord>(data.users || []);
-    const events: AnalyticsEventRecord[] = Array.isArray(data.events) ? data.events : [];
-    const dailyStats = new Map<string, AnalyticsDailyStatsRecord>(data.dailyStats || []);
-    const dailyUserActive = new Set<string>(data.dailyUserActive || []);
-    const dailyUserSynced = new Set<string>(data.dailyUserSynced || []);
-
-    return {
-      users,
-      events,
-      dailyStats,
-      dailyUserActive,
-      dailyUserSynced,
-    };
-  } catch (err) {
-    console.warn("[analyticsDb] Could not read analytics store from disk:", err);
-    return null;
+    if (!raw.trim()) return;
+    const data = JSON.parse(raw) as DiskPayload;
+    mergePayloadIntoStore(store, data);
+    store.lastLoadedMtime = stat.mtimeMs;
+  } catch {
+    // Non-fatal, preserve current in-memory data
   }
 }
 
@@ -134,7 +221,18 @@ function saveStoreToDisk(store: MemoryStore): void {
       fs.mkdirSync(dir, { recursive: true });
     }
 
-    const payload = {
+    // Merge latest disk state first so parallel worker writes are unioned
+    if (fs.existsSync(filePath)) {
+      try {
+        const raw = fs.readFileSync(filePath, "utf-8");
+        if (raw.trim()) {
+          const diskData = JSON.parse(raw) as DiskPayload;
+          mergePayloadIntoStore(store, diskData);
+        }
+      } catch {}
+    }
+
+    const payload: DiskPayload = {
       users: Array.from(store.users.entries()),
       events: store.events,
       dailyStats: Array.from(store.dailyStats.entries()),
@@ -143,11 +241,30 @@ function saveStoreToDisk(store: MemoryStore): void {
       savedAt: new Date().toISOString(),
     };
 
-    fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), "utf-8");
+    const serialized = JSON.stringify(payload, null, 2);
+
+    // Safe write: write to temp file then rename or direct write with retry
+    const tempFile = `${filePath}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
+    try {
+      fs.writeFileSync(tempFile, serialized, "utf-8");
+      try {
+        fs.renameSync(tempFile, filePath);
+      } catch {
+        fs.writeFileSync(filePath, serialized, "utf-8");
+        try { fs.unlinkSync(tempFile); } catch {}
+      }
+    } catch {
+      fs.writeFileSync(filePath, serialized, "utf-8");
+    }
+
+    try {
+      store.lastLoadedMtime = fs.statSync(filePath).mtimeMs;
+    } catch {
+      store.lastLoadedMtime = Date.now();
+    }
     diskWriteSupported = true;
-  } catch {
-    diskWriteSupported = false;
-    // In read-only serverless filesystems outside /tmp, silently continue in-memory
+  } catch (err) {
+    console.warn("[analyticsDb] Failed to save store to disk:", err);
   }
 }
 
@@ -158,21 +275,19 @@ export function isDiskPersisted(): boolean {
 function getMemoryStore(): MemoryStore {
   const g = globalThis as unknown as Record<symbol, MemoryStore | undefined>;
   if (!g[ANALYTICS_STORE_SLOT]) {
-    const fromDisk = loadStoreFromDisk();
-    if (fromDisk) {
-      g[ANALYTICS_STORE_SLOT] = fromDisk;
-    } else {
-      g[ANALYTICS_STORE_SLOT] = {
-        users: new Map(),
-        events: [],
-        dailyStats: new Map(),
-        dailyUserActive: new Set(),
-        dailyUserSynced: new Set(),
-      };
-      if (!isTestEnvironment()) {
-        saveStoreToDisk(g[ANALYTICS_STORE_SLOT]!);
-      }
-    }
+    const store: MemoryStore = {
+      users: new Map(),
+      events: [],
+      dailyStats: new Map(),
+      dailyUserActive: new Set(),
+      dailyUserSynced: new Set(),
+      lastLoadedMtime: 0,
+    };
+    syncStoreWithDisk(store);
+    g[ANALYTICS_STORE_SLOT] = store;
+  } else {
+    // Keep in sync with disk across multiple Next.js worker processes
+    syncStoreWithDisk(g[ANALYTICS_STORE_SLOT]!);
   }
   return g[ANALYTICS_STORE_SLOT]!;
 }
@@ -198,6 +313,7 @@ export function resetAnalyticsStore(): void {
   store.dailyStats.clear();
   store.dailyUserActive.clear();
   store.dailyUserSynced.clear();
+  store.lastLoadedMtime = 0;
 
   const dedupe = getDedupeMap();
   dedupe.clear();
@@ -444,30 +560,56 @@ export async function getAggregateAnalytics(): Promise<AnalyticsAggregateDTO> {
   // In-memory calculations
   const totalUsers = mem.users.size;
   let usersWhoSynced = 0;
-  let activeToday = 0;
-  let activeThisWeek = 0;
-  let activeThisMonth = 0;
+  let totalSuccessfulSyncsFromUsers = 0;
 
   const oneDayAgo = now - 24 * 60 * 60 * 1000;
   const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
   const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
 
+  const activeTodaySet = new Set<string>();
+  const activeWeekSet = new Set<string>();
+  const activeMonthSet = new Set<string>();
+
+  // Process daily active entries
+  for (const entry of mem.dailyUserActive) {
+    const colonIdx = entry.indexOf(":");
+    if (colonIdx === -1) continue;
+    const dateStr = entry.slice(0, colonIdx);
+    const userId = entry.slice(colonIdx + 1);
+
+    if (dateStr === todayStr) {
+      activeTodaySet.add(userId);
+    }
+    const dTime = new Date(`${dateStr}T00:00:00Z`).getTime();
+    if (dTime >= sevenDaysAgo) {
+      activeWeekSet.add(userId);
+    }
+    if (dTime >= thirtyDaysAgo) {
+      activeMonthSet.add(userId);
+    }
+  }
+
   for (const user of mem.users.values()) {
     if (user.has_synced) usersWhoSynced += 1;
+    totalSuccessfulSyncsFromUsers += user.sync_count || 0;
 
     const lastSeen = new Date(user.last_seen_at).getTime();
     const userDate = user.last_seen_at.slice(0, 10);
 
     if (userDate === todayStr || lastSeen >= oneDayAgo) {
-      activeToday += 1;
+      activeTodaySet.add(user.anonymous_id);
     }
     if (lastSeen >= sevenDaysAgo) {
-      activeThisWeek += 1;
+      activeWeekSet.add(user.anonymous_id);
     }
     if (lastSeen >= thirtyDaysAgo) {
-      activeThisMonth += 1;
+      activeMonthSet.add(user.anonymous_id);
     }
   }
+
+  const activeToday = activeTodaySet.size;
+  const activeThisWeek = activeWeekSet.size;
+  const activeThisMonth = activeMonthSet.size;
 
   // Calculate sync operations
   let successfulSyncs = 0;
@@ -475,9 +617,9 @@ export async function getAggregateAnalytics(): Promise<AnalyticsAggregateDTO> {
   let syncAttempts = 0;
 
   for (const day of mem.dailyStats.values()) {
-    successfulSyncs += day.successful_syncs;
-    failedSyncs += day.failed_syncs;
-    syncAttempts += day.sync_attempts;
+    successfulSyncs += day.successful_syncs || 0;
+    failedSyncs += day.failed_syncs || 0;
+    syncAttempts += day.sync_attempts || 0;
   }
 
   // Also include events from raw array if dailyStats wasn't populated yet
@@ -489,6 +631,7 @@ export async function getAggregateAnalytics(): Promise<AnalyticsAggregateDTO> {
     }
   }
 
+  successfulSyncs = Math.max(successfulSyncs, totalSuccessfulSyncsFromUsers);
   const effectiveAttempts = Math.max(syncAttempts, successfulSyncs + failedSyncs);
   const syncSuccessRate =
     effectiveAttempts > 0
@@ -502,12 +645,29 @@ export async function getAggregateAnalytics(): Promise<AnalyticsAggregateDTO> {
     const dateStr = getUtcDateString(d);
     const stats = mem.dailyStats.get(dateStr);
 
+    let dayActiveCount = stats?.unique_users || 0;
+    let countFromSet = 0;
+    for (const entry of mem.dailyUserActive) {
+      if (entry.startsWith(`${dateStr}:`)) countFromSet++;
+    }
+    dayActiveCount = Math.max(dayActiveCount, countFromSet);
+    if (dateStr === todayStr) {
+      dayActiveCount = Math.max(dayActiveCount, activeToday);
+    }
+
+    let newUsersCount = 0;
+    for (const u of mem.users.values()) {
+      if (u.first_seen_at.slice(0, 10) === dateStr) {
+        newUsersCount++;
+      }
+    }
+
     dailyTrends.push({
       date: dateStr,
       label: formatDateLabel(dateStr),
-      activeUsers: stats?.unique_users || 0,
+      activeUsers: dayActiveCount,
       totalSyncs: stats?.successful_syncs || 0,
-      uniqueUsers: stats?.unique_users || 0,
+      uniqueUsers: newUsersCount > 0 ? newUsersCount : dayActiveCount,
       successfulSyncs: stats?.successful_syncs || 0,
     });
   }

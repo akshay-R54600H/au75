@@ -58,16 +58,10 @@ export async function POST(req: NextRequest) {
     const wp = getWebPushInstance();
     const subsToNotify: PushSubscriptionDTO[] = [];
 
+    // ONLY notify the requesting subscription, never broadcast or overwrite other users' schedules!
     if (body.subscription?.endpoint) {
       await savePushSubscription(body.subscription);
       subsToNotify.push(body.subscription);
-    }
-
-    const allSubs = await getAllPushSubscriptions();
-    for (const s of allSubs) {
-      if (!subsToNotify.some((existing) => existing.endpoint === s.endpoint)) {
-        subsToNotify.push(s);
-      }
     }
 
     // Compose notification payload strictly with real class info
@@ -105,30 +99,6 @@ export async function POST(req: NextRequest) {
       } catch (err: unknown) {
         errors.push(`${sub.endpoint.slice(-10)}: ${(err as Error)?.message || "Failed"}`);
       }
-
-      // Also sync upcoming real schedule alerts for this subscription
-      try {
-        const fullSchedule = generateSchedule({
-          sessions: REAL_SESSIONS,
-          academicDays: [],
-          offsetMinutes: DEFAULT_NOTIFICATION_OFFSET_MINUTES,
-          nowMs: Date.now(),
-        });
-
-        const alerts = fullSchedule.map((item) => ({
-          id: item.id,
-          triggerAt: item.notificationTime,
-          title: item.title,
-          body: item.body,
-          tag: item.id,
-          classDate: item.classDate,
-          formattedTime: item.formattedTime,
-          venue: item.venue,
-          subjectName: item.subjectName,
-        }));
-
-        await syncScheduledAlerts(sub.endpoint, alerts);
-      } catch {}
     }
 
     return NextResponse.json({

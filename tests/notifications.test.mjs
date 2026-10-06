@@ -346,3 +346,102 @@ test("Test 10 — Navigation: main navbar contains NO Notifications item", () =>
   // Navbar order must remain strictly Home, Calendar, Skips, Settings
   assert.deepEqual(labels, ["Home", "Calendar", "Skips", "Settings"]);
 });
+
+test("Test 11 — Student timetable filtering: only classes in enrolled subjects receive notifications", () => {
+  const studentSubjects = [
+    {
+      id: "portal-cs101",
+      code: "CS101",
+      name: "Computer Programming",
+      attended: 10,
+      total: 12,
+    },
+    {
+      id: "portal-math201",
+      code: "MATH201",
+      name: "Calculus & Linear Algebra",
+      attended: 8,
+      total: 10,
+    },
+  ];
+
+  const sessions = [
+    {
+      id: "s-valid-1",
+      date: "2026-10-20",
+      day: "Tuesday",
+      subjectId: "portal-cs101",
+      subjectCode: "CS101",
+      subjectName: "Computer Programming",
+      room: "Room 101",
+      session: 1,
+      startTime: "09:00",
+      isFuture: true,
+    },
+    {
+      id: "s-not-in-timetable",
+      date: "2026-10-20",
+      day: "Tuesday",
+      subjectId: "portal-e1csa353",
+      subjectCode: "E1CSA353",
+      subjectName: "Ethical Hacking",
+      room: "LT 407",
+      session: 2,
+      startTime: "10:00",
+      isFuture: true,
+    },
+    {
+      id: "s-valid-2",
+      date: "2026-10-20",
+      day: "Tuesday",
+      subjectId: "portal-math201",
+      subjectCode: "MATH201",
+      subjectName: "Calculus & Linear Algebra",
+      room: "Room 202",
+      session: 3,
+      startTime: "11:00",
+      isFuture: true,
+    },
+  ];
+
+  const testNow = new Date(2026, 9, 20, 7, 0, 0, 0).getTime();
+  const schedule = generateSchedule({
+    sessions,
+    subjects: studentSubjects,
+    offsetMinutes: 5,
+    nowMs: testNow,
+  });
+
+  assert.equal(schedule.length, 2, "Must only schedule the 2 classes that are in student's timetable");
+  const subjectNames = schedule.map((item) => item.subjectName);
+  assert.ok(subjectNames.includes("Computer Programming"));
+  assert.ok(subjectNames.includes("Calculus & Linear Algebra"));
+  assert.ok(!subjectNames.includes("Ethical Hacking"), "Must NOT schedule Ethical Hacking since it is not in the timetable");
+});
+
+test("Test 12 — Empty enrolled subjects list produces 0 notifications (no orphaned or demo notifications)", () => {
+  const sessions = [
+    {
+      id: "s-demo-1",
+      date: "2026-10-20",
+      day: "Tuesday",
+      subjectId: "demo-1",
+      subjectCode: "DEMO101",
+      subjectName: "Demo Class",
+      room: "LT 1",
+      session: 1,
+      startTime: "09:00",
+      isFuture: true,
+    },
+  ];
+
+  const testNow = new Date(2026, 9, 20, 7, 0, 0, 0).getTime();
+  const schedule = generateSchedule({
+    sessions,
+    subjects: [], // Empty enrolled subjects
+    offsetMinutes: 5,
+    nowMs: testNow,
+  });
+
+  assert.equal(schedule.length, 0, "No notifications should be generated when student has no enrolled subjects");
+});

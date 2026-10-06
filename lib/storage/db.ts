@@ -104,19 +104,31 @@ export async function loadAppData(): Promise<AppData> {
     })(),
   };
 
-  // If no saved subjects exist, or if the stored subjects are the stale mock demo data
-  // (e.g. Operating Systems / E1CSA318 instead of Leadership and Management Skills / E1CSA317),
-  // migrate to the real student portal subjects and timetable.
+  const isSynced = Boolean(settingsMap["lastSyncedAt"]);
+
+  // Only consider demo data migration if the user has never synced real portal data
   const isStaleMockData =
-    subjects.length === 0 ||
-    (subjects.some((s) => s.code === "E1CSA318") && !subjects.some((s) => s.code === "E1CSA317"));
+    !isSynced &&
+    (subjects.length === 0 ||
+      (subjects.some((s) => s.code === "E1CSA318") && !subjects.some((s) => s.code === "E1CSA317")));
 
-  const finalSubjects = isStaleMockData ? REAL_SUBJECTS : subjects;
-  const finalSessions = isStaleMockData ? REAL_SESSIONS : (sessions.length > 0 ? sessions : REAL_SESSIONS);
+  let finalSubjects: AppData["subjects"];
+  let finalSessions: AppData["sessions"];
 
-  if (isStaleMockData && typeof window !== "undefined") {
-    clearAndFill("subjects", REAL_SUBJECTS).catch(console.error);
-    clearAndFill("sessions", REAL_SESSIONS).catch(console.error);
+  if (isSynced) {
+    // Synced user data: strictly preserve student's actual timetable & subjects, never inject demo classes
+    finalSubjects = subjects;
+    finalSessions = sessions;
+  } else if (isStaleMockData) {
+    finalSubjects = REAL_SUBJECTS;
+    finalSessions = REAL_SESSIONS;
+    if (typeof window !== "undefined") {
+      clearAndFill("subjects", REAL_SUBJECTS).catch(console.error);
+      clearAndFill("sessions", REAL_SESSIONS).catch(console.error);
+    }
+  } else {
+    finalSubjects = subjects.length > 0 ? subjects : REAL_SUBJECTS;
+    finalSessions = sessions.length > 0 ? sessions : REAL_SESSIONS;
   }
 
   return {
