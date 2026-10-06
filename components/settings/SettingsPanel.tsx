@@ -22,6 +22,7 @@ import {
   getNotificationPermission,
   requestNotificationPermission,
   sendTestNotification,
+  sendTodayClassAlert,
 } from "@/lib/notifications/manager";
 import Button from "@/components/ui/Button";
 import InstallButton from "@/components/pwa/InstallButton";
@@ -95,9 +96,11 @@ export default function SettingsPanel() {
   const [target, setTarget] = useState(String(settings.attendanceTarget));
   const [msg, setMsg] = useState<string | null>(null);
   const [hasSaved, setHasSaved] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    setMounted(true);
     setHasSaved(Boolean(loadQuickLogin()));
   }, []);
 
@@ -209,6 +212,30 @@ export default function SettingsPanel() {
         else flash("Could not trigger test notification.");
       } else {
         flash("Cannot send test notification: permission blocked.");
+      }
+    } finally {
+      setTestSending(false);
+    }
+  }
+
+  async function handleSendTodayAlert() {
+    setTestSending(true);
+    try {
+      if (!isNotificationSupported()) {
+        flash("Notifications aren't supported on this browser/device.");
+        return;
+      }
+      let perm = getNotificationPermission();
+      if (perm !== "granted") {
+        perm = await requestNotificationPermission();
+        setNotifPermission(perm);
+      }
+      if (perm === "granted") {
+        const sent = await sendTodayClassAlert();
+        if (sent) flash("Today's real class notification sent!");
+        else flash("Could not trigger class notification.");
+      } else {
+        flash("Cannot send notification: permission blocked.");
       }
     } finally {
       setTestSending(false);
@@ -390,14 +417,16 @@ export default function SettingsPanel() {
         </div>
 
         {/* Next Scheduled Alert Preview */}
-        {notifConfig.enabled && nextNotification && (
+        {mounted && notifConfig.enabled && nextNotification && (
           <div className="mt-3.5 rounded-xl border border-marker/40 bg-marker-soft/50 p-3 text-xs text-ink flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
             <div className="flex items-center gap-2 min-w-0">
               <Bell size={15} className="text-marker shrink-0" />
               <div className="truncate">
                 <span className="font-bold text-marker">Next alert scheduled:</span>{" "}
                 <span className="font-semibold text-ink">{nextNotification.subjectName}</span>{" "}
-                <span className="text-muted">({nextNotification.venue}) at {new Date(nextNotification.notificationTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>
+                <span suppressHydrationWarning className="text-muted">
+                  ({nextNotification.venue}) at {new Date(nextNotification.notificationTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                </span>
               </div>
             </div>
             <button
@@ -433,17 +462,29 @@ export default function SettingsPanel() {
             )}
           </div>
 
-          <Button
-            variant="secondary"
-            size="sm"
-            type="button"
-            onClick={handleTestNotification}
-            disabled={testSending}
-            className="text-xs shrink-0"
-          >
-            <Bell size={13} />
-            <span>{testSending ? "Sending…" : "Send Test Notification"}</span>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="primary"
+              size="sm"
+              type="button"
+              onClick={handleSendTodayAlert}
+              disabled={testSending}
+              className="text-xs shrink-0"
+            >
+              <Bell size={13} />
+              <span>{testSending ? "Sending…" : "Send Today's Class Alert"}</span>
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              type="button"
+              onClick={handleTestNotification}
+              disabled={testSending}
+              className="text-xs shrink-0"
+            >
+              <span>Test Ping</span>
+            </Button>
+          </div>
         </div>
       </Section>
 

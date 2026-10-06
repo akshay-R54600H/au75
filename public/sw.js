@@ -68,16 +68,20 @@ self.addEventListener("fetch", (e) => {
 // ------------------------------------------------------------
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
+  const targetUrl = (e.notification.data && e.notification.data.url) || "/calendar";
 
   e.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
         if ("focus" in client) {
+          if ("navigate" in client && client.url !== targetUrl) {
+            client.navigate(targetUrl);
+          }
           return client.focus();
         }
       }
       if (self.clients.openWindow) {
-        return self.clients.openWindow("/calendar");
+        return self.clients.openWindow(targetUrl);
       }
     })
   );
@@ -96,7 +100,9 @@ self.addEventListener("push", (e) => {
       icon: "/icon.svg",
       badge: "/icon.svg",
       tag: payload.tag || "au75-class-notification",
-      data: payload.data || {},
+      vibrate: [200, 100, 200],
+      renotify: true,
+      data: payload.data || { url: "/calendar" },
     };
     e.waitUntil(self.registration.showNotification(title, options));
   } catch {
@@ -106,8 +112,12 @@ self.addEventListener("push", (e) => {
         body: text || "Upcoming class alert.",
         icon: "/icon.svg",
         badge: "/icon.svg",
+        vibrate: [200, 100, 200],
+        renotify: true,
+        data: { url: "/calendar" },
       })
     );
   }
 });
+
 

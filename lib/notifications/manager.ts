@@ -101,15 +101,71 @@ export async function showBrowserNotification(
 }
 
 /**
- * Send the test notification required by Part 16:
+ * Send the test notification:
  * Title: "🔔 AU75 Notifications"
  * Body: "Class notifications are working correctly."
+ * Triggers direct browser notification and background Web Push if supported.
  */
 export async function sendTestNotification(): Promise<boolean> {
-  return showBrowserNotification("🔔 AU75 Notifications", {
+  const localSuccess = await showBrowserNotification("🔔 AU75 Notifications", {
     body: "Class notifications are working correctly.",
     tag: "au75-test-notification",
   });
+
+  // Also trigger background push in the background if supported
+  try {
+    const { isPushSupported, sendTestPush } = await import("./pushClient");
+    if (isPushSupported()) {
+      sendTestPush().catch(() => {});
+    }
+  } catch {}
+
+  return localSuccess;
+}
+
+/**
+ * Dispatch an immediate notification for today's present class from the real portal timetable.
+ * Uses both direct browser notification and background Web Push worker.
+ */
+export async function sendTodayClassAlert(): Promise<boolean> {
+  let title = "🔔 Leadership and Management Skills";
+  let body = "Leadership and Management Skills in LT 213 (11:00 - 12:00). Next: Java Programming in LT 213 (12:00).";
+
+  try {
+    const res = await fetch("/api/portal/present-timetable");
+    if (res.ok) {
+      const data = await res.json();
+      const current = data.activeOrNext;
+      if (current) {
+        title = `🔔 ${current.name}`;
+        const next = data.classes?.find((c: { slot: number }) => c.slot > current.slot);
+        const nextPart = next ? ` Next: ${next.name} in ${next.room} (${next.startTime}).` : "";
+        body = `${current.name} in ${current.room} (${current.time}).${nextPart}`;
+      }
+    }
+  } catch {}
+
+  const localSuccess = await showBrowserNotification(title, {
+    body,
+    tag: "au75-today-class-alert",
+  });
+
+  try {
+    const { isPushSupported, getExistingPushSubscription, subscribeToPushNotifications } = await import("./pushClient");
+    if (isPushSupported()) {
+      let sub = await getExistingPushSubscription();
+      if (!sub) sub = await subscribeToPushNotifications();
+      if (sub) {
+        await fetch("/api/portal/present-timetable", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ subscription: sub.toJSON() }),
+        });
+      }
+    }
+  } catch {}
+
+  return localSuccess;
 }
 
 /** Load notification settings from localStorage */

@@ -24,6 +24,7 @@ import {
   importData,
 } from "@/lib/storage/db";
 import { MOCK_SUBJECTS, MOCK_SESSIONS, MOCK_ACADEMIC_DAYS, DEFAULT_SETTINGS } from "@/lib/mock/data";
+import { REAL_SUBJECTS, REAL_SESSIONS } from "@/lib/portal/realTimetable";
 import { THEME_STORAGE_KEY } from "@/lib/themes";
 import { todayISO, isSessionFuture } from "@/lib/calculations/dates";
 
@@ -47,8 +48,8 @@ function refreshFuture(sessions: ClassSession[], now: Date = new Date()): ClassS
 }
 
 const demoData: AppData = {
-  subjects: MOCK_SUBJECTS,
-  sessions: MOCK_SESSIONS,
+  subjects: REAL_SUBJECTS,
+  sessions: REAL_SESSIONS,
   academicDays: MOCK_ACADEMIC_DAYS,
   predictions: {},
   settings: DEFAULT_SETTINGS,
@@ -74,8 +75,8 @@ function reducer(state: AppState, action: Action): AppState {
     case "CLEAR_DATA":
       return {
         ...state,
-        subjects: MOCK_SUBJECTS,
-        sessions: MOCK_SESSIONS,
+        subjects: REAL_SUBJECTS,
+        sessions: REAL_SESSIONS,
         academicDays: MOCK_ACADEMIC_DAYS,
         predictions: {},
         settings: { ...state.settings, lastSyncedAt: undefined },
