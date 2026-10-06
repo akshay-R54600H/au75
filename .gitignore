@@ -19,3 +19,7 @@ npm-debug.log*
 # portal probe secrets + captured HTML (never commit)
 scripts/
 .vercel
+
+# local server persistent store
+/.data/
+/.au75-data/

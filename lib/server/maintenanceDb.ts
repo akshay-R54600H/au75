@@ -1,7 +1,10 @@
 // ============================================================
 // Server-side persistent maintenance configuration using Supabase
-// Falls back to memory store if Supabase credentials are not provided.
+// Falls back to persistent local disk & memory store if Supabase credentials are not provided.
 // ============================================================
+
+import fs from "node:fs";
+import path from "node:path";
 
 export interface MaintenanceRecord {
   id: string;
@@ -18,7 +21,7 @@ export interface MaintenanceDTO {
   message: string;
   updatedAt: string;
   updatedBy?: string | null;
-  source: "supabase" | "fallback_memory";
+  source: "supabase" | "local_disk" | "fallback_memory";
 }
 
 const DEFAULT_TITLE = "AU75 is under maintenance";
@@ -33,17 +36,71 @@ interface CacheEntry {
   cachedAt: number;
 }
 
+function isTestEnvironment(): boolean {
+  return (
+    process.env.NODE_ENV === "test" ||
+    (Array.isArray(process.execArgv) && process.execArgv.includes("--test")) ||
+    (Array.isArray(process.argv) && process.argv.some((arg) => arg.includes("test")))
+  );
+}
+
+function getMaintenanceFilePath(): string {
+  const baseDir = path.join(process.cwd(), ".data");
+  const fileName = isTestEnvironment() ? "maintenance_test_store.json" : "maintenance_store.json";
+  return path.join(baseDir, fileName);
+}
+
+let diskWriteSupported = true;
+
+function loadMaintenanceFromDisk(): MaintenanceRecord | null {
+  try {
+    const filePath = getMaintenanceFilePath();
+    if (!fs.existsSync(filePath)) return null;
+    const raw = fs.readFileSync(filePath, "utf-8");
+    if (!raw.trim()) return null;
+    return JSON.parse(raw) as MaintenanceRecord;
+  } catch {
+    return null;
+  }
+}
+
+function saveMaintenanceToDisk(record: MaintenanceRecord): void {
+  try {
+    const filePath = getMaintenanceFilePath();
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(filePath, JSON.stringify(record, null, 2), "utf-8");
+    diskWriteSupported = true;
+  } catch {
+    diskWriteSupported = false;
+  }
+}
+
+export function isMaintenanceDiskPersisted(): boolean {
+  return diskWriteSupported && !isTestEnvironment();
+}
+
 function getFallbackStore(): MaintenanceRecord {
   const g = globalThis as unknown as Record<symbol, MaintenanceRecord | undefined>;
   if (!g[FALLBACK_SLOT]) {
-    g[FALLBACK_SLOT] = {
-      id: "global",
-      maintenance_mode: false,
-      maintenance_title: DEFAULT_TITLE,
-      maintenance_message: DEFAULT_MESSAGE,
-      updated_at: new Date().toISOString(),
-      updated_by: "system",
-    };
+    const fromDisk = loadMaintenanceFromDisk();
+    if (fromDisk) {
+      g[FALLBACK_SLOT] = fromDisk;
+    } else {
+      g[FALLBACK_SLOT] = {
+        id: "global",
+        maintenance_mode: false,
+        maintenance_title: DEFAULT_TITLE,
+        maintenance_message: DEFAULT_MESSAGE,
+        updated_at: new Date().toISOString(),
+        updated_by: "system",
+      };
+      if (!isTestEnvironment()) {
+        saveMaintenanceToDisk(g[FALLBACK_SLOT]!);
+      }
+    }
   }
   return g[FALLBACK_SLOT]!;
 }
@@ -88,7 +145,7 @@ export async function getMaintenanceConfig(forceFresh = false): Promise<Maintena
       message: mem.maintenance_message || DEFAULT_MESSAGE,
       updatedAt: mem.updated_at,
       updatedBy: mem.updated_by,
-      source: "fallback_memory",
+      source: isMaintenanceDiskPersisted() ? "local_disk" : "fallback_memory",
     };
     setCache(result);
     return result;
@@ -204,6 +261,8 @@ export async function updateMaintenanceConfig(params: {
   mem.maintenance_message = newMessage;
   mem.updated_at = updatedAt;
   mem.updated_by = params.updatedBy;
+
+  saveMaintenanceToDisk(mem);
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

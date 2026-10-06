@@ -509,8 +509,8 @@ export default function AdminDashboard({ adminEmail, onLogout }: AdminDashboardP
                   </>
                 ) : (
                   <>
-                    <span className="h-2 w-2 rounded-full bg-warning" />
-                    <span>In-Memory Fallback (Local)</span>
+                    <span className="h-2 w-2 rounded-full bg-pen" />
+                    <span>Local Disk Persistence (.data)</span>
                   </>
                 )}
               </span>

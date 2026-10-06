@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Plus, Trash2, Download, Upload, LogOut, ExternalLink, Bell, CheckCircle2, AlertCircle } from "lucide-react";
 import { useApp } from "@/lib/context/AppContext";
@@ -13,6 +13,10 @@ import {
   DEFAULT_NOTIFICATION_OFFSET_MINUTES,
   type NotificationOffsetMinutes,
 } from "@/lib/notifications/types";
+import {
+  generateSchedule,
+  clearSentNotificationHistory,
+} from "@/lib/notifications/scheduler";
 import {
   isNotificationSupported,
   getNotificationPermission,
@@ -112,6 +116,17 @@ export default function SettingsPanel() {
   };
   const [notifPermission, setNotifPermission] = useState<NotificationPermission | "unsupported">("default");
   const [testSending, setTestSending] = useState(false);
+
+  const nextNotification = useMemo(() => {
+    if (!notifConfig.enabled) return null;
+    const schedule = generateSchedule({
+      sessions: state.sessions,
+      academicDays: state.academicDays,
+      offsetMinutes: notifConfig.offsetMinutes || DEFAULT_NOTIFICATION_OFFSET_MINUTES,
+      nowMs: Date.now(),
+    });
+    return schedule[0] || null;
+  }, [state.sessions, state.academicDays, notifConfig.enabled, notifConfig.offsetMinutes]);
 
   useEffect(() => {
     setNotifPermission(getNotificationPermission());
@@ -373,6 +388,30 @@ export default function SettingsPanel() {
             ))}
           </div>
         </div>
+
+        {/* Next Scheduled Alert Preview */}
+        {notifConfig.enabled && nextNotification && (
+          <div className="mt-3.5 rounded-xl border border-marker/40 bg-marker-soft/50 p-3 text-xs text-ink flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <Bell size={15} className="text-marker shrink-0" />
+              <div className="truncate">
+                <span className="font-bold text-marker">Next alert scheduled:</span>{" "}
+                <span className="font-semibold text-ink">{nextNotification.subjectName}</span>{" "}
+                <span className="text-muted">({nextNotification.venue}) at {new Date(nextNotification.notificationTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                clearSentNotificationHistory();
+                flash("Notification history cleared. Upcoming alerts re-scheduled.");
+              }}
+              className="shrink-0 text-[11px] font-semibold text-muted hover:text-ink underline transition"
+            >
+              Reset Sent History
+            </button>
+          </div>
+        )}
 
         {/* Status message and test button */}
         <div className="mt-3.5 pt-3 border-t border-line flex flex-col sm:flex-row sm:items-center justify-between gap-3">

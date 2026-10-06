@@ -43,6 +43,11 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
+  const isStatic =
+    url.pathname.startsWith("/_next/static/") ||
+    url.pathname.startsWith("/icons/") ||
+    /\.(png|svg|ico|woff2?)$/.test(url.pathname);
+
   if (isStatic) {
     e.respondWith(
       caches.match(request).then(

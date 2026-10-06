@@ -1,8 +1,11 @@
 // ============================================================
 // Server-side Anonymous Aggregate Analytics Engine
 // Privacy-first: strictly collects only anonymous aggregate counters.
-// Uses Supabase when credentials exist; falls back to persistent in-memory store.
+// Uses Supabase when credentials exist; falls back to persistent local disk & memory store.
 // ============================================================
+
+import fs from "node:fs";
+import path from "node:path";
 
 export type AnalyticsEventType =
   | "app_visit"
@@ -64,7 +67,7 @@ export interface AnalyticsAggregateDTO {
   failedSyncs: number;
   syncSuccessRate: number;
   dailyTrends: DailyTrendPoint[];
-  source: "supabase" | "fallback_memory";
+  source: "supabase" | "local_disk" | "fallback_memory";
   lastUpdated: string;
 }
 
@@ -80,16 +83,96 @@ interface MemoryStore {
   dailyUserSynced: Set<string>; // "${date}:${anonymous_id}"
 }
 
+function isTestEnvironment(): boolean {
+  return (
+    process.env.NODE_ENV === "test" ||
+    (Array.isArray(process.execArgv) && process.execArgv.includes("--test")) ||
+    (Array.isArray(process.argv) && process.argv.some((arg) => arg.includes("test")))
+  );
+}
+
+function getStoreFilePath(): string {
+  const baseDir = path.join(process.cwd(), ".data");
+  const fileName = isTestEnvironment() ? "analytics_test_store.json" : "analytics_store.json";
+  return path.join(baseDir, fileName);
+}
+
+let diskWriteSupported = true;
+
+function loadStoreFromDisk(): MemoryStore | null {
+  try {
+    const filePath = getStoreFilePath();
+    if (!fs.existsSync(filePath)) return null;
+    const raw = fs.readFileSync(filePath, "utf-8");
+    if (!raw.trim()) return null;
+    const data = JSON.parse(raw);
+
+    const users = new Map<string, AnalyticsUserRecord>(data.users || []);
+    const events: AnalyticsEventRecord[] = Array.isArray(data.events) ? data.events : [];
+    const dailyStats = new Map<string, AnalyticsDailyStatsRecord>(data.dailyStats || []);
+    const dailyUserActive = new Set<string>(data.dailyUserActive || []);
+    const dailyUserSynced = new Set<string>(data.dailyUserSynced || []);
+
+    return {
+      users,
+      events,
+      dailyStats,
+      dailyUserActive,
+      dailyUserSynced,
+    };
+  } catch (err) {
+    console.warn("[analyticsDb] Could not read analytics store from disk:", err);
+    return null;
+  }
+}
+
+function saveStoreToDisk(store: MemoryStore): void {
+  try {
+    const filePath = getStoreFilePath();
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    const payload = {
+      users: Array.from(store.users.entries()),
+      events: store.events,
+      dailyStats: Array.from(store.dailyStats.entries()),
+      dailyUserActive: Array.from(store.dailyUserActive),
+      dailyUserSynced: Array.from(store.dailyUserSynced),
+      savedAt: new Date().toISOString(),
+    };
+
+    fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), "utf-8");
+    diskWriteSupported = true;
+  } catch {
+    diskWriteSupported = false;
+    // In read-only serverless filesystems outside /tmp, silently continue in-memory
+  }
+}
+
+export function isDiskPersisted(): boolean {
+  return diskWriteSupported && !isTestEnvironment();
+}
+
 function getMemoryStore(): MemoryStore {
   const g = globalThis as unknown as Record<symbol, MemoryStore | undefined>;
   if (!g[ANALYTICS_STORE_SLOT]) {
-    g[ANALYTICS_STORE_SLOT] = {
-      users: new Map(),
-      events: [],
-      dailyStats: new Map(),
-      dailyUserActive: new Set(),
-      dailyUserSynced: new Set(),
-    };
+    const fromDisk = loadStoreFromDisk();
+    if (fromDisk) {
+      g[ANALYTICS_STORE_SLOT] = fromDisk;
+    } else {
+      g[ANALYTICS_STORE_SLOT] = {
+        users: new Map(),
+        events: [],
+        dailyStats: new Map(),
+        dailyUserActive: new Set(),
+        dailyUserSynced: new Set(),
+      };
+      if (!isTestEnvironment()) {
+        saveStoreToDisk(g[ANALYTICS_STORE_SLOT]!);
+      }
+    }
   }
   return g[ANALYTICS_STORE_SLOT]!;
 }
@@ -118,6 +201,13 @@ export function resetAnalyticsStore(): void {
 
   const dedupe = getDedupeMap();
   dedupe.clear();
+
+  try {
+    const filePath = getStoreFilePath();
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  } catch {}
 }
 
 /** Helper to get YYYY-MM-DD in UTC */
@@ -256,6 +346,9 @@ export async function recordAnalyticsEvent(params: {
     daily.failed_syncs += 1;
   }
   daily.updated_at = isoNow;
+
+  // Persist updated in-memory store to local disk
+  saveStoreToDisk(mem);
 
   // 2. Persist to Supabase if configured
   if (isSupabaseConfigured()) {
@@ -431,7 +524,7 @@ export async function getAggregateAnalytics(): Promise<AnalyticsAggregateDTO> {
     failedSyncs,
     syncSuccessRate,
     dailyTrends,
-    source: isSupabaseConfigured() ? "supabase" : "fallback_memory",
+    source: isSupabaseConfigured() ? "supabase" : isDiskPersisted() ? "local_disk" : "fallback_memory",
     lastUpdated: isoNow,
   };
 }
