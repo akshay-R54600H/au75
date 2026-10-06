@@ -42,19 +42,24 @@ export async function showBrowserNotification(
   if (!isNotificationSupported()) return false;
   if (Notification.permission !== "granted") return false;
 
-  const defaultOptions: NotificationOptions = {
+  const defaultOptions: NotificationOptions & { vibrate?: number[]; renotify?: boolean } = {
     icon: "/icon.svg",
     badge: "/icon.svg",
+    vibrate: [200, 100, 200],
+    renotify: true,
     ...options,
   };
 
-  // 1. Try Service Worker registration without hanging on .ready
+  // 1. Try Service Worker registration (most reliable across mobile Android & desktop PWA)
   if ("serviceWorker" in navigator) {
     try {
-      const reg = await Promise.race([
-        navigator.serviceWorker.getRegistration(),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 250)),
+      let reg: ServiceWorkerRegistration | null | undefined = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 300)),
       ]);
+      if (!reg) {
+        reg = await navigator.serviceWorker.getRegistration();
+      }
       if (reg && typeof reg.showNotification === "function") {
         await reg.showNotification(title, defaultOptions);
         return true;

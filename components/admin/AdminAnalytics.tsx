@@ -19,6 +19,7 @@ import {
   CalendarDays,
   Table,
   Loader2,
+  Database,
 } from "lucide-react";
 import type { AnalyticsAggregateDTO } from "@/lib/server/analyticsDb";
 
@@ -123,6 +124,34 @@ export default function AdminAnalytics({ onSessionExpired }: AdminAnalyticsProps
         </div>
 
         <div className="flex items-center gap-3">
+          {data?.source === "fallback_memory" && (
+            <span
+              className="flex items-center gap-1.5 rounded-full border border-warning/40 bg-warning-soft px-2.5 py-1 text-[11px] font-semibold text-warning"
+              title="Data is stored in temporary server RAM and resets when the server restarts. Connect Supabase to make it permanently persistent."
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-warning animate-pulse" />
+              In-Memory Mode (Temporary)
+            </span>
+          )}
+          {data?.source === "local_disk" && (
+            <span
+              className="flex items-center gap-1.5 rounded-full border border-pen/40 bg-accent-soft px-2.5 py-1 text-[11px] font-semibold text-pen"
+              title="Data is permanently stored on local disk (.data/analytics_store.json) across server restarts."
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-pen" />
+              Local Disk (Persistent)
+            </span>
+          )}
+          {data?.source === "supabase" && (
+            <span
+              className="flex items-center gap-1.5 rounded-full border border-success/40 bg-success-soft px-2.5 py-1 text-[11px] font-semibold text-success"
+              title="Data is permanently persisted in Supabase PostgreSQL."
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-success" />
+              Supabase Connected
+            </span>
+          )}
+
           {data?.lastUpdated && (
             <span className="text-xs text-faint hidden sm:inline-block">
               Updated {formatTimestamp(data.lastUpdated)}
@@ -142,6 +171,28 @@ export default function AdminAnalytics({ onSessionExpired }: AdminAnalyticsProps
           </Button>
         </div>
       </div>
+
+      {/* Notice when running on Local Disk Persistence */}
+      {data?.source === "local_disk" && (
+        <div className="rounded-2xl border border-line bg-surface/80 p-3.5 text-xs text-muted flex items-start gap-3">
+          <Database size={15} className="text-pen shrink-0 mt-0.5" />
+          <div className="leading-relaxed">
+            <strong className="text-ink font-semibold">Local Persistence Active:</strong> Analytics
+            are permanently saved on disk in <code className="font-mono text-[11px] bg-paper px-1 py-0.5 rounded border border-line">.data/analytics_store.json</code> and will not reset on server restarts. To synchronize across multiple devices or when deploying to Vercel, configure Supabase credentials in <code className="font-mono text-[11px] bg-paper px-1 py-0.5 rounded border border-line">.env.local</code>.
+          </div>
+        </div>
+      )}
+
+      {/* Ephemeral Memory Notice when Supabase and Local Disk are not configured */}
+      {data?.source === "fallback_memory" && (
+        <div className="rounded-2xl border border-warning/30 bg-warning-soft/50 p-4 text-xs text-ink flex items-start gap-3">
+          <AlertTriangle size={16} className="text-warning shrink-0 mt-0.5" />
+          <div className="leading-relaxed">
+            <strong className="text-warning font-semibold">Temporary In-Memory Storage Active:</strong>{" "}
+            Supabase credentials (<code className="font-mono text-[11px] bg-surface px-1 py-0.5 rounded border border-line">NEXT_PUBLIC_SUPABASE_URL</code> &amp; <code className="font-mono text-[11px] bg-surface px-1 py-0.5 rounded border border-line">SUPABASE_SERVICE_ROLE_KEY</code>) are not configured in your environment. Analytics are currently held in server RAM and reset whenever the development server restarts or reloads. To persist metrics permanently, configure Supabase in <code className="font-mono text-[11px] bg-surface px-1 py-0.5 rounded border border-line">.env.local</code> and run <code className="font-mono text-[11px] bg-surface px-1 py-0.5 rounded border border-line">supabase/schema.sql</code>.
+          </div>
+        </div>
+      )}
 
       {/* Privacy Notice Banner (Part 14) */}
       <div className="rounded-2xl border border-line bg-surface/70 p-4 text-xs text-muted flex items-start gap-3">

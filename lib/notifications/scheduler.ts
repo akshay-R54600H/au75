@@ -13,19 +13,40 @@ import {
 
 const SENT_NOTIFICATIONS_KEY = "au75_sent_notification_ids";
 
+/** Safely parse 24h or 12h time strings (e.g. "10:00", "09:30", "9:00 AM", "2:15 PM") */
+export function parseTimeString(timeStr?: string): { hour: number; minute: number } | null {
+  if (!timeStr) return null;
+  const trimmed = timeStr.trim();
+  const ampmMatch = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(am|pm)?$/i);
+  if (ampmMatch) {
+    let hour = parseInt(ampmMatch[1], 10);
+    const minute = parseInt(ampmMatch[2], 10);
+    const period = ampmMatch[3]?.toLowerCase();
+    if (period === "pm" && hour < 12) hour += 12;
+    if (period === "am" && hour === 12) hour = 0;
+    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+      return { hour, minute };
+    }
+  }
+  const parts = trimmed.split(":");
+  if (parts.length >= 2) {
+    const hour = parseInt(parts[0], 10);
+    const minute = parseInt(parts[1], 10);
+    if (!isNaN(hour) && !isNaN(minute) && hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+      return { hour, minute };
+    }
+  }
+  return null;
+}
+
 /** Convert "HH:MM" (e.g. "10:00", "09:30", "14:15") into formatted 12-hour string (e.g. "10:00 AM", "9:30 AM", "2:15 PM") */
 export function formatNotificationTime(timeStr?: string): string {
   if (!timeStr) return "";
-  const parts = timeStr.trim().split(":");
-  if (parts.length < 2) return timeStr;
-
-  const h = parseInt(parts[0], 10);
-  const m = parseInt(parts[1], 10);
-  if (isNaN(h) || isNaN(m)) return timeStr;
-
-  const hr = h % 12 || 12;
-  const ampm = h < 12 ? "AM" : "PM";
-  return `${hr}:${String(m).padStart(2, "0")} ${ampm}`;
+  const parsed = parseTimeString(timeStr);
+  if (!parsed) return timeStr;
+  const hr = parsed.hour % 12 || 12;
+  const ampm = parsed.hour < 12 ? "AM" : "PM";
+  return `${hr}:${String(parsed.minute).padStart(2, "0")} ${ampm}`;
 }
 
 /** Generate deterministic non-sensitive notification identifier */
@@ -47,18 +68,18 @@ export function calculateNotificationTime(
   if (!sessionDate || !startTime) return null;
 
   const dateParts = sessionDate.split("-").map(Number);
-  const timeParts = startTime.split(":").map(Number);
-
-  if (dateParts.length !== 3 || timeParts.length < 2) return null;
+  if (dateParts.length !== 3) return null;
   const [year, month, day] = dateParts;
-  const [hour, minute] = timeParts;
 
-  if (isNaN(year) || isNaN(month) || isNaN(day) || isNaN(hour) || isNaN(minute)) {
+  if (isNaN(year) || isNaN(month) || isNaN(day)) {
     return null;
   }
 
+  const parsedTime = parseTimeString(startTime);
+  if (!parsedTime) return null;
+
   // Construct Date object in user's local timezone
-  const classDate = new Date(year, month - 1, day, hour, minute, 0, 0);
+  const classDate = new Date(year, month - 1, day, parsedTime.hour, parsedTime.minute, 0, 0);
   if (isNaN(classDate.getTime())) return null;
 
   return classDate.getTime() - offsetMinutes * 60 * 1000;
