@@ -19,6 +19,11 @@ const SESSION_VISIT_KEY = "au75_app_visit_recorded";
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+// In-memory session cache so an anonymous ID remains constant throughout the session
+// even if localStorage is blocked, throws, or is in strict private mode
+let cachedAnonymousId: string | null = null;
+let appVisitTracked = false;
+
 /** Generate a cryptographically random UUID v4 */
 function generateRandomUUID(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -45,26 +50,57 @@ function generateRandomUUID(): string {
 
 /**
  * Retrieve or generate a persistent anonymous installation ID.
- * Stored solely in local browser storage.
+ * Multi-tiered storage with in-memory caching ensures that the same UUID is reused
+ * for the entire browser session even if localStorage is restricted or disabled.
  */
 export function getOrCreateAnonymousId(): string {
-  if (typeof window === "undefined" || !window.localStorage) {
+  if (cachedAnonymousId && UUID_REGEX.test(cachedAnonymousId)) {
+    return cachedAnonymousId;
+  }
+
+  if (typeof window === "undefined") {
     return "";
   }
 
+  // 1. Try localStorage
   try {
-    const existing = window.localStorage.getItem(STORAGE_KEY);
-    if (existing && UUID_REGEX.test(existing)) {
-      return existing;
+    if (window.localStorage) {
+      const existing = window.localStorage.getItem(STORAGE_KEY);
+      if (existing && UUID_REGEX.test(existing)) {
+        cachedAnonymousId = existing;
+        return existing;
+      }
     }
+  } catch {}
 
-    const newId = generateRandomUUID();
-    window.localStorage.setItem(STORAGE_KEY, newId);
-    return newId;
-  } catch {
-    // If localStorage is disabled (e.g. strict private mode), return a memory session ID
-    return generateRandomUUID();
-  }
+  // 2. Try sessionStorage fallback
+  try {
+    if (window.sessionStorage) {
+      const sessExisting = window.sessionStorage.getItem(STORAGE_KEY);
+      if (sessExisting && UUID_REGEX.test(sessExisting)) {
+        cachedAnonymousId = sessExisting;
+        return sessExisting;
+      }
+    }
+  } catch {}
+
+  // 3. Generate a new UUID and persist across available storages
+  const newId = generateRandomUUID();
+  cachedAnonymousId = newId;
+
+  try {
+    if (window.localStorage) {
+      window.localStorage.setItem(STORAGE_KEY, newId);
+    }
+  } catch {}
+
+  try {
+    if (window.sessionStorage) {
+      window.sessionStorage.setItem(STORAGE_KEY, newId);
+    }
+  } catch {}
+
+  return newId;
 }
 
 /**
@@ -73,6 +109,15 @@ export function getOrCreateAnonymousId(): string {
  */
 export async function trackEvent(eventType: AnalyticsEventType): Promise<void> {
   if (typeof window === "undefined") return;
+
+  // Never track app visits from administrative routes
+  if (
+    eventType === "app_visit" &&
+    typeof window.location?.pathname === "string" &&
+    window.location.pathname.startsWith("/admin")
+  ) {
+    return;
+  }
 
   try {
     const anonymousId = getOrCreateAnonymousId();
@@ -98,12 +143,24 @@ export async function trackEvent(eventType: AnalyticsEventType): Promise<void> {
 
 /**
  * Track an application visit once per browser session.
+ * Automatically ignores admin dashboard routes.
  */
 export function trackAppVisit(): void {
   if (typeof window === "undefined") return;
 
+  // Ignore admin pages so administrative visits do not count as student app installations
+  if (
+    typeof window.location?.pathname === "string" &&
+    window.location.pathname.startsWith("/admin")
+  ) {
+    return;
+  }
+
+  if (appVisitTracked) return;
+
   try {
     if (window.sessionStorage && window.sessionStorage.getItem(SESSION_VISIT_KEY)) {
+      appVisitTracked = true;
       return;
     }
     if (window.sessionStorage) {
@@ -113,5 +170,6 @@ export function trackAppVisit(): void {
     // Ignore storage issues
   }
 
+  appVisitTracked = true;
   trackEvent("app_visit");
 }

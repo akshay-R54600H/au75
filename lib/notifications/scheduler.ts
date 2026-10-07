@@ -123,12 +123,14 @@ export function buildClassNotification(
  */
 export function generateSchedule(params: {
   sessions: ClassSession[];
+  subjects?: import("@/lib/models/types").Subject[];
   academicDays?: AcademicDay[];
   offsetMinutes?: NotificationOffsetMinutes;
   nowMs?: number;
 }): ScheduledClassNotification[] {
   const {
     sessions,
+    subjects,
     academicDays = [],
     offsetMinutes = DEFAULT_NOTIFICATION_OFFSET_MINUTES,
     nowMs = Date.now(),
@@ -136,6 +138,39 @@ export function generateSchedule(params: {
 
   if (!sessions || sessions.length === 0) {
     return [];
+  }
+
+  // If enrolled subjects are explicitly provided, only schedule classes for subjects in student's timetable
+  let candidateSessions = sessions;
+  if (subjects !== undefined) {
+    if (subjects.length === 0) {
+      return [];
+    }
+    const validCodes = new Set(
+      subjects.map((s) => s.code.trim().toUpperCase().replace(/\s+/g, ""))
+    );
+    const validIds = new Set(subjects.map((s) => s.id.trim().toLowerCase()));
+    const validNames = new Set(
+      subjects.map((s) => s.name.trim().toLowerCase().replace(/\s+/g, " "))
+    );
+
+    candidateSessions = sessions.filter((session) => {
+      const code = (session.subjectCode || "").trim().toUpperCase().replace(/\s+/g, "");
+      const id = (session.subjectId || "").trim().toLowerCase();
+      const name = (session.subjectName || "").trim().toLowerCase().replace(/\s+/g, " ");
+
+      const matchesCode = Boolean(code && validCodes.has(code));
+      const matchesId = Boolean(
+        id &&
+          (validIds.has(id) ||
+            validIds.has(`portal-${id}`) ||
+            (id.startsWith("portal-") &&
+              validCodes.has(id.replace(/^portal-/, "").toUpperCase())))
+      );
+      const matchesName = Boolean(name && validNames.has(name));
+
+      return matchesCode || matchesId || matchesName;
+    });
   }
 
   // Build a Set of holiday & break dates to skip
@@ -149,7 +184,7 @@ export function generateSchedule(params: {
   const seenIds = new Set<string>();
   const schedule: ScheduledClassNotification[] = [];
 
-  for (const session of sessions) {
+  for (const session of candidateSessions) {
     // 1. Skip holidays and breaks
     if (holidayDates.has(session.date)) continue;
 

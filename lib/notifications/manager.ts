@@ -7,6 +7,9 @@ import {
   type NotificationSettings,
   DEFAULT_NOTIFICATION_OFFSET_MINUTES,
 } from "./types.ts";
+import type { ClassSession, Subject } from "@/lib/models/types";
+import { todayISO } from "@/lib/calculations/dates";
+import { formatNotificationTime } from "./scheduler";
 
 const SETTINGS_STORAGE_KEY = "au75_notification_settings";
 
@@ -124,46 +127,99 @@ export async function sendTestNotification(): Promise<boolean> {
 }
 
 /**
- * Dispatch an immediate notification for today's present class from the real portal timetable.
- * Uses both direct browser notification and background Web Push worker.
+ * Dispatch an immediate notification for today's present class from the student's timetable.
+ * Uses the student's actual enrolled classes to avoid alerting classes not in their timetable.
  */
-export async function sendTodayClassAlert(): Promise<boolean> {
-  let title = "🔔 Leadership and Management Skills";
-  let body = "Leadership and Management Skills in LT 213 (11:00 - 12:00). Next: Java Programming in LT 213 (12:00).";
+export async function sendTodayClassAlert(
+  userSessions?: ClassSession[],
+  userSubjects?: Subject[]
+): Promise<boolean> {
+  const today = todayISO();
+  let title = "🔔 Class Notification";
+  let body = "No classes scheduled for today in your timetable.";
 
-  try {
-    const res = await fetch("/api/portal/present-timetable");
-    if (res.ok) {
-      const data = await res.json();
-      const current = data.activeOrNext;
+  // If student sessions are provided, evaluate strictly from the student's own timetable
+  if (userSessions && userSessions.length > 0) {
+    let candidateSessions = userSessions.filter((s) => s.date === today);
+
+    // Filter against enrolled subjects if provided
+    if (userSubjects && userSubjects.length > 0) {
+      const validCodes = new Set(
+        userSubjects.map((s) => s.code.trim().toUpperCase().replace(/\s+/g, ""))
+      );
+      const validIds = new Set(userSubjects.map((s) => s.id.trim().toLowerCase()));
+      const validNames = new Set(
+        userSubjects.map((s) => s.name.trim().toLowerCase().replace(/\s+/g, " "))
+      );
+
+      candidateSessions = candidateSessions.filter((session) => {
+        const code = (session.subjectCode || "").trim().toUpperCase().replace(/\s+/g, "");
+        const id = (session.subjectId || "").trim().toLowerCase();
+        const name = (session.subjectName || "").trim().toLowerCase().replace(/\s+/g, " ");
+        return (
+          (code && validCodes.has(code)) ||
+          (id && (validIds.has(id) || validIds.has(`portal-${id}`))) ||
+          (name && validNames.has(name))
+        );
+      });
+    }
+
+    if (candidateSessions.length > 0) {
+      candidateSessions.sort((a, b) =>
+        (a.startTime || "00:00").localeCompare(b.startTime || "00:00")
+      );
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+      // Find active class or next upcoming class today
+      const current =
+        candidateSessions.find((s) => {
+          if (!s.startTime) return false;
+          const [sh, sm] = s.startTime.split(":").map(Number);
+          const [eh, em] = (s.endTime || s.startTime).split(":").map(Number);
+          const startMin = sh * 60 + sm;
+          const endMin = (eh * 60 + em) || (startMin + 55);
+          return currentMinutes >= startMin && currentMinutes <= endMin;
+        }) ||
+        candidateSessions.find((s) => {
+          if (!s.startTime) return false;
+          const [sh, sm] = s.startTime.split(":").map(Number);
+          return sh * 60 + sm > currentMinutes;
+        }) ||
+        candidateSessions[0];
+
       if (current) {
-        title = `🔔 ${current.name}`;
-        const next = data.classes?.find((c: { slot: number }) => c.slot > current.slot);
-        const nextPart = next ? ` Next: ${next.name} in ${next.room} (${next.startTime}).` : "";
-        body = `${current.name} in ${current.room} (${current.time}).${nextPart}`;
+        title = `🔔 ${current.subjectName}`;
+        const currentIndex = candidateSessions.indexOf(current);
+        const next = candidateSessions[currentIndex + 1];
+        const nextPart = next
+          ? ` Next: ${next.subjectName} in ${next.room || "Venue unavailable"} (${formatNotificationTime(next.startTime)}).`
+          : "";
+        const formattedStart = formatNotificationTime(current.startTime);
+        body = `${current.subjectName} in ${current.room || "Venue unavailable"} (${formattedStart}).${nextPart}`;
       }
     }
-  } catch {}
+  } else {
+    // Fallback only if no sessions are loaded into memory
+    try {
+      const res = await fetch("/api/portal/present-timetable");
+      if (res.ok) {
+        const data = await res.json();
+        const current = data.activeOrNext;
+        if (current) {
+          title = `🔔 ${current.name}`;
+          const next = data.classes?.find((c: { slot: number }) => c.slot > current.slot);
+          const nextPart = next ? ` Next: ${next.name} in ${next.room} (${next.startTime}).` : "";
+          body = `${current.name} in ${current.room} (${current.time}).${nextPart}`;
+        }
+      }
+    } catch {}
+  }
 
   const localSuccess = await showBrowserNotification(title, {
     body,
     tag: "au75-today-class-alert",
   });
-
-  try {
-    const { isPushSupported, getExistingPushSubscription, subscribeToPushNotifications } = await import("./pushClient");
-    if (isPushSupported()) {
-      let sub = await getExistingPushSubscription();
-      if (!sub) sub = await subscribeToPushNotifications();
-      if (sub) {
-        await fetch("/api/portal/present-timetable", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ subscription: sub.toJSON() }),
-        });
-      }
-    }
-  } catch {}
 
   return localSuccess;
 }
