@@ -4,7 +4,7 @@ import Logo from "@/components/ui/Logo";
 import Confetti from "@/components/landing/Confetti";
 import InstallButton from "@/components/pwa/InstallButton";
 import AppFooter from "@/components/layout/AppFooter";
-import { HeroLeftDoodle, HeroRightDoodle } from "@/components/landing/Doodles";
+import { HeroFloatingDoodles } from "@/components/landing/Doodles";
 
 const FEEDBACK_URL = "https://tally.so/r/aQ1WNX";
 const WHATSAPP_URL = "https://chat.whatsapp.com/KyCzZjxdfcPFBaVzNrGGKH";
@@ -46,14 +46,9 @@ export default function Home() {
       <main>
         <section className="relative overflow-hidden">
           <Confetti />
+          <HeroFloatingDoodles />
           <div className="relative mx-auto flex max-w-5xl flex-col items-center px-4 pb-16 pt-14 text-center sm:px-6 sm:pt-24">
             <div className="relative w-full max-w-3xl">
-              <div className="pointer-events-none absolute -left-10 top-1/2 hidden w-36 -translate-y-1/2 -rotate-6 md:block lg:-left-28">
-                <HeroLeftDoodle />
-              </div>
-              <div className="pointer-events-none absolute -right-10 top-1/2 hidden w-32 -translate-y-1/2 rotate-6 md:block lg:-right-24">
-                <HeroRightDoodle />
-              </div>
               <h1 className="text-4xl font-extrabold leading-tight tracking-tight sm:text-6xl">
                 Know exactly how many classes you can{" "}
                 <span className="hl font-hand text-5xl font-bold text-accent-deep sm:text-7xl">skip</span>
