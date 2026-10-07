@@ -91,17 +91,6 @@ export async function loadAppData(): Promise<AppData> {
     showDecimals: (settingsMap["showDecimals"] as boolean) ?? DEFAULT_SETTINGS.showDecimals,
     milestones: (settingsMap["milestones"] as AppSettings["milestones"]) ?? [],
     lastSyncedAt: settingsMap["lastSyncedAt"] as string | undefined,
-    notifications: (() => {
-      const rawNotif = settingsMap["notifications"] as Partial<AppSettings["notifications"]> | undefined;
-      const isManuallyDisabled =
-        typeof window !== "undefined" && window.localStorage?.getItem("au75_notif_manually_disabled") === "true";
-      return {
-        enabled: isManuallyDisabled ? false : (rawNotif?.enabled ?? DEFAULT_SETTINGS.notifications?.enabled ?? true),
-        offsetMinutes: (rawNotif?.offsetMinutes && [5, 10, 15, 30].includes(rawNotif.offsetMinutes))
-          ? rawNotif.offsetMinutes
-          : (DEFAULT_SETTINGS.notifications?.offsetMinutes ?? 5),
-      };
-    })(),
   };
 
   const isSynced = Boolean(settingsMap["lastSyncedAt"]);

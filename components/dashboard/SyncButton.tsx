@@ -6,7 +6,6 @@ import { useApp } from "@/lib/context/AppContext";
 import { mergeSyncData } from "@/lib/storage/db";
 import { createSession, submitLogin, completeOtp, type SyncPayload } from "@/lib/portal/syncClient";
 import { loadQuickLogin, saveQuickLogin, forgetSavedLogin } from "@/lib/platform/credentials";
-import { trackEvent } from "@/lib/analytics/client";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 
@@ -88,11 +87,9 @@ export default function SyncButton({ compact = false }: { compact?: boolean }) {
 
     setBusy(true);
     setMessage("");
-    trackEvent("sync_started");
     try {
       const r = await submitLogin(token, id, pw, captcha.trim());
       if (!r.step) {
-        trackEvent("sync_failed");
         const captchaFailed = r.reason === "captcha-failed";
         const text = captchaFailed
           ? r.error || "The CAPTCHA didn't match. Tap Refresh for a new image and try again."
@@ -111,7 +108,6 @@ export default function SyncButton({ compact = false }: { compact?: boolean }) {
       }
       if (r.step === "done" && r.data) await apply(r.data, id, pw);
     } catch {
-      trackEvent("sync_failed");
       setStep("error");
       setMessage("Could not reach the sync server. Try again.");
     } finally {
@@ -127,7 +123,6 @@ export default function SyncButton({ compact = false }: { compact?: boolean }) {
     try {
       const r = await completeOtp(token, otp);
       if (!r.ok || !r.data) {
-        trackEvent("sync_failed");
         setOtp("");
         setMessage(r.error || "Could not verify the OTP. Try again.");
         return;
@@ -135,7 +130,6 @@ export default function SyncButton({ compact = false }: { compact?: boolean }) {
       const q = useSaved ? loadQuickLogin() : null;
       await apply(r.data, q?.studentId ?? studentId.trim(), q?.password ?? password);
     } catch {
-      trackEvent("sync_failed");
       setMessage("Could not reach the sync server. Try again.");
     } finally {
       setBusy(false);
@@ -176,7 +170,6 @@ export default function SyncButton({ compact = false }: { compact?: boolean }) {
       settings: { ...state.settings, lastSyncedAt: new Date().toISOString() },
     });
     setStep("success");
-    trackEvent("sync_success");
     setMessage(
       data.subjects.length
         ? `Synced ${data.subjects.length} subjects and ${data.sessions.length} classes.`

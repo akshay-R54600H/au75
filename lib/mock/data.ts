@@ -12,10 +12,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   theme: "system",
   showDecimals: true,
   milestones: [],
-  notifications: {
-    enabled: true,
-    offsetMinutes: 5,
-  },
 };
 
 function iso(d: Date): string {
