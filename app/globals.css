@@ -203,6 +203,94 @@ select {
   scrollbar-width: none;
 }
 
+/* ------------------------------------------------------------
+   Floating and scattering doodle animations
+   ------------------------------------------------------------ */
+
+@keyframes doodle-float-1 {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-14px) rotate(3deg);
+  }
+}
+
+@keyframes doodle-float-2 {
+  0%, 100% {
+    transform: translateY(0px) translateX(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-18px) translateX(6px) rotate(-4deg);
+  }
+}
+
+@keyframes doodle-float-3 {
+  0%, 100% {
+    transform: translateY(0px) translateX(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-12px) translateX(-8px) rotate(3deg);
+  }
+}
+
+@keyframes doodle-float-4 {
+  0%, 100% {
+    transform: translateY(0px) scale(1) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-16px) scale(1.05) rotate(-2deg);
+  }
+}
+
+@keyframes doodle-drift {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  33% {
+    transform: translate(5px, -10px) rotate(2deg);
+  }
+  66% {
+    transform: translate(-6px, -15px) rotate(-3deg);
+  }
+}
+
+@keyframes doodle-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+}
+
+.animate-doodle-float-1 {
+  animation: doodle-float-1 5.5s ease-in-out infinite;
+  will-change: transform;
+}
+.animate-doodle-float-2 {
+  animation: doodle-float-2 6.8s ease-in-out infinite;
+  will-change: transform;
+}
+.animate-doodle-float-3 {
+  animation: doodle-float-3 7.6s ease-in-out infinite;
+  will-change: transform;
+}
+.animate-doodle-float-4 {
+  animation: doodle-float-4 8.2s ease-in-out infinite;
+  will-change: transform;
+}
+.animate-doodle-drift {
+  animation: doodle-drift 9s ease-in-out infinite;
+  will-change: transform;
+}
+.animate-doodle-pulse {
+  animation: doodle-pulse 4.8s ease-in-out infinite;
+  will-change: transform;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
