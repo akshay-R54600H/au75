@@ -1,0 +1,43 @@
+# Triggers the class-reminder push dispatcher every 5 minutes.
+#
+# Vercel's Hobby plan only allows daily cron jobs, so the schedule lives
+# here instead of vercel.json. GitHub runs scheduled workflows on a
+# best-effort basis (runs can start a few minutes late); the dispatcher
+# looks back 45 minutes, so a late run still sends any reminders it missed.
+#
+# Setup (repo → Settings → Secrets and variables → Actions):
+#   - Secret   CRON_SECRET: same value as CRON_SECRET in Vercel (if set there)
+#   - Variable APP_URL:     deployed site, defaults to https://au75.in
+#
+# Note: GitHub pauses scheduled workflows after 60 days without repository
+# activity; re-enable it from the Actions tab if that happens.
+
+name: Send class notifications
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: send-notifications
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Call notification dispatcher
+        env:
+          APP_URL: ${{ vars.APP_URL || 'https://au75.in' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          auth=()
+          if [ -n "$CRON_SECRET" ]; then
+            auth=(-H "Authorization: Bearer $CRON_SECRET")
+          fi
+          curl -fsS --retry 2 --retry-delay 5 --max-time 60 "${auth[@]}" \
+            "$APP_URL/api/cron/send-notifications"
