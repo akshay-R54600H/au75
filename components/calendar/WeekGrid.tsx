@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { ClassSession } from "@/lib/models/types";
 import { todayISO, fmtDay, fmtTime } from "@/lib/calculations/dates";
+import { useSwipe } from "@/lib/hooks/useSwipe";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -11,6 +12,7 @@ const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export default function WeekGrid({ sessions }: { sessions: ClassSession[] }) {
   const [offset, setOffset] = useState(0);
   const today = todayISO();
+  const swipe = useSwipe(() => setOffset((o) => o + 1), () => setOffset((o) => o - 1));
 
   const week = useMemo(() => {
     const d = new Date();
@@ -30,17 +32,17 @@ export default function WeekGrid({ sessions }: { sessions: ClassSession[] }) {
   const cols = hasSat ? 6 : 5;
 
   return (
-    <div>
+    <div {...swipe}>
       <div className="mb-3 flex items-center justify-between">
-        <button onClick={() => setOffset((o) => o - 1)} className="rounded-full p-1.5 hover:bg-ink/5" aria-label="Previous week"><ChevronLeft size={18} /></button>
+        <button onClick={() => setOffset((o) => o - 1)} className="pressable flex h-10 w-10 items-center justify-center rounded-full hover:bg-ink/5" aria-label="Previous week"><ChevronLeft size={18} /></button>
         <span className="text-sm font-semibold text-muted">{fmtDay(week[0])} – {fmtDay(week[cols - 1])}</span>
-        <button onClick={() => setOffset((o) => o + 1)} className="rounded-full p-1.5 hover:bg-ink/5" aria-label="Next week"><ChevronRight size={18} /></button>
+        <button onClick={() => setOffset((o) => o + 1)} className="pressable flex h-10 w-10 items-center justify-center rounded-full hover:bg-ink/5" aria-label="Next week"><ChevronRight size={18} /></button>
       </div>
 
       {periods.length === 0 ? (
         <p className="rounded-xl border-2 border-dashed border-line-strong px-4 py-8 text-center text-sm text-muted">No classes this week.</p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="-mx-4 overflow-x-auto overscroll-x-contain px-4 md:mx-0 md:px-0">
           <table className="w-full min-w-[520px] border-separate border-spacing-1 text-xs">
             <thead>
               <tr>

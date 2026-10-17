@@ -5,12 +5,13 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, MapPin, Clock, User, RotateCcw } from "lucide-react";
 import AppShell from "@/components/layout/AppShell";
 import { useApp } from "@/lib/context/AppContext";
-import { calcPercentage, calcPrediction } from "@/lib/calculations/engine";
-import { subjectVerdict } from "@/lib/calculations/summary";
-import { fmtDay, fmtWeekday, fmtTime, fmtRange, fmtPct, isSessionFuture, todayISO } from "@/lib/calculations/dates";
+import { calcPercentage, calcPrediction, getSubjectStatus, upcomingSessions } from "@/lib/calculations/engine";
+import { subjectVerdict, planVerdict } from "@/lib/calculations/summary";
+import { fmtDay, fmtWeekday, fmtTime, fmtRange, fmtPct, todayISO } from "@/lib/calculations/dates";
 import type { ClassSession, PredictionState } from "@/lib/models/types";
 import CircularProgress from "@/components/ui/CircularProgress";
 import Button from "@/components/ui/Button";
+import { haptic } from "@/lib/haptics";
 
 const TONE = { safe: "text-success", warning: "text-warn", danger: "text-danger" } as const;
 const SOFT = { safe: "bg-success-soft", warning: "bg-warn-soft", danger: "bg-danger-soft" } as const;
@@ -20,7 +21,7 @@ function cycle(s: PredictionState): PredictionState {
 }
 
 function tileClass(state: PredictionState, isToday: boolean): string {
-  const base = "flex min-h-[60px] flex-col justify-center rounded-xl border-2 p-1.5 text-center transition-colors";
+  const base = "pressable flex min-h-[64px] flex-col justify-center rounded-xl border-2 p-1.5 text-center";
   if (state === "absent") return `${base} border-danger bg-danger-soft text-danger`;
   if (state === "ignore") return `${base} border-line bg-line/40 text-faint line-through`;
   return `${base} ${isToday ? "border-accent bg-accent-soft/50" : "border-dashed border-line-strong bg-surface"} text-ink`;
@@ -49,13 +50,14 @@ export default function SubjectDetail({ subjectId }: { subjectId: string }) {
   const { attendanceTarget, requirement, showDecimals, milestones } = state.settings;
   const today = todayISO(now);
 
-  const future = state.sessions
-    .filter((s) => s.subjectId === subjectId && s.isFuture && isSessionFuture(s, now))
+  const future = upcomingSessions(state.sessions, state.academicDays, now, state.settings.lastSyncedAt)
+    .filter((s) => s.subjectId === subjectId)
     .sort((a, b) => a.date.localeCompare(b.date) || a.session - b.session);
 
   const currentPct = calcPercentage(subject.attended, subject.total);
+  const currentStatus = getSubjectStatus(subject.attended, subject.total, attendanceTarget, requirement);
   const plan = calcPrediction(subject, future, state.predictions);
-  const v = subjectVerdict(plan.predictedAttended, plan.predictedTotal, attendanceTarget, requirement);
+  const v = planVerdict(plan, attendanceTarget, requirement);
 
   const upcomingMilestones = milestones
     .filter((m) => m.date >= today)
@@ -75,7 +77,10 @@ export default function SubjectDetail({ subjectId }: { subjectId: string }) {
 
   return (
     <AppShell>
-      <button onClick={() => router.back()} className="mb-3 inline-flex items-center gap-1 text-sm font-semibold text-muted hover:text-ink">
+      <button
+        onClick={() => (window.history.length > 1 ? router.back() : router.push("/skips"))}
+        className="pressable -ml-2 mb-3 inline-flex min-h-10 items-center gap-1 rounded-full px-2 text-sm font-semibold text-muted hover:text-ink"
+      >
         <ArrowLeft size={16} /> Back
       </button>
 
@@ -94,7 +99,7 @@ export default function SubjectDetail({ subjectId }: { subjectId: string }) {
             </ul>
           </div>
           <div className="flex shrink-0 flex-col items-center">
-            <CircularProgress value={currentPct} size={96} target={attendanceTarget} decimals={showDecimals} />
+            <CircularProgress value={currentPct} size={96} target={attendanceTarget} decimals={showDecimals} status={currentStatus} />
             <div className="mt-1.5 text-center text-xs font-bold text-ink whitespace-nowrap">
               <span>Projected: </span>
               <span className={`text-sm font-extrabold ${TONE[v.status]}`}>
@@ -122,7 +127,7 @@ export default function SubjectDetail({ subjectId }: { subjectId: string }) {
             {upcomingMilestones.map((m) => {
               const until = future.filter((s) => s.date < m.date);
               const p = calcPrediction(subject, until, state.predictions);
-              const mv = subjectVerdict(p.predictedAttended, p.predictedTotal, attendanceTarget, requirement);
+              const mv = planVerdict(p, attendanceTarget, requirement);
               return (
                 <div key={m.id} className="card flex items-center justify-between px-4 py-3 text-sm">
                   <div>
@@ -164,7 +169,10 @@ export default function SubjectDetail({ subjectId }: { subjectId: string }) {
                   key={s.id}
                   type="button"
                   className={tileClass(ps, s.date === today)}
-                  onClick={() => setPrediction(s.id, cycle(ps))}
+                  onClick={() => {
+                    haptic();
+                    setPrediction(s.id, cycle(ps));
+                  }}
                   aria-label={`${fmtDay(s.date)} ${fmtWeekday(s.date)}: ${ps}`}
                 >
                   <div className="text-xs font-bold leading-tight">{fmtDay(s.date)}</div>

@@ -36,7 +36,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+  :root:not([data-theme="light"]):not([data-theme="sakura"]) {
     --paper: 22 22 33;
     --surface: 29 29 44;
     --line: 44 44 69;
@@ -89,6 +89,143 @@
   color-scheme: dark;
 }
 
+/* Sakura — blush paper, plum ink, cherry-blossom pink, matcha green.
+   Scenery (sky, branch, falling petals) lives in SakuraBlossoms.tsx. */
+:root[data-theme="sakura"] {
+  --paper: 255 245 247;
+  --surface: 255 252 253;
+  --line: 247 222 231;
+  --line-strong: 234 189 205;
+  --rule: 249 216 227;
+  --ink: 74 38 56;
+  --muted: 125 86 104;
+  --faint: 172 134 151;
+  --pen: 214 79 126;
+  --pen-deep: 158 42 88;
+  --pen-soft: 253 228 237;
+  --marker: 236 108 148;
+  --marker-deep: 188 56 102;
+  --marker-soft: 255 228 238;
+  --sticky: 255 233 214;
+  --highlight: 255 212 227;
+  --success: 92 146 86;
+  --success-soft: 233 243 227;
+  --warning: 201 129 44;
+  --warning-soft: 253 240 222;
+  --danger: 204 52 72;
+  --danger-soft: 253 228 231;
+  color-scheme: light;
+}
+
+:root[data-theme="sakura"] {
+  background: #fff5f7;
+}
+
+/* Let the fixed sky layer behind the page show through. */
+:root[data-theme="sakura"] body {
+  background: transparent;
+}
+
+:root[data-theme="sakura"] .card {
+  background: rgb(var(--surface) / 0.8);
+  border-color: rgb(var(--line) / 0.9);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.9), 0 14px 34px -22px rgb(176 52 98 / 0.45);
+  -webkit-backdrop-filter: blur(12px) saturate(1.15);
+  backdrop-filter: blur(12px) saturate(1.15);
+}
+
+:root[data-theme="sakura"] nav[aria-label="Main navigation"] {
+  background: rgb(var(--surface) / 0.62);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+:root[data-theme="sakura"] ::selection {
+  background: rgb(var(--highlight));
+  color: rgb(var(--pen-deep));
+}
+
+.sakura-sky {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(1100px 620px at 92% -12%, rgb(255 208 223 / 0.85), transparent 62%),
+    radial-gradient(820px 520px at -12% 28%, rgb(255 226 235 / 0.9), transparent 60%),
+    radial-gradient(900px 640px at 50% 118%, rgb(252 202 218 / 0.6), transparent 62%),
+    linear-gradient(180deg, #fff9fa 0%, #fff0f4 55%, #fde7ef 100%);
+  animation: sakura-fade-in 1.2s ease both;
+}
+
+/* Pale sun, like a woodblock print. */
+.sakura-sun {
+  position: absolute;
+  left: 7%;
+  top: 9%;
+  width: clamp(140px, 22vw, 260px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(255 188 206 / 0.55) 0%, rgb(255 205 219 / 0.35) 45%, transparent 70%);
+  filter: blur(2px);
+}
+
+.sakura-hills {
+  position: absolute;
+  inset: auto 0 0 0;
+  width: 100%;
+  height: clamp(120px, 26vh, 260px);
+}
+
+.sakura-branch {
+  position: absolute;
+  top: -6px;
+  right: -10px;
+  width: clamp(220px, 44vw, 460px);
+  transform-origin: 100% 0%;
+  animation: sakura-sway 9s ease-in-out infinite;
+  filter: drop-shadow(0 6px 10px rgb(150 40 80 / 0.12));
+}
+
+.sakura-petals {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* A few large, soft petals drifting over the page for depth. */
+.sakura-petals-front {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+/* Backdrop blur on every card is costly to repaint while scrolling on
+   phones — use a more opaque card there instead. */
+@media (pointer: coarse) {
+  :root[data-theme="sakura"] .card {
+    background: rgb(var(--surface) / 0.9);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@keyframes sakura-sway {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-1.6deg); }
+}
+
+@keyframes sakura-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -105,6 +242,51 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* A stray wide element must never make the whole page pan sideways
+   (it also shoves the fixed bottom nav off-screen on phones). */
+body {
+  overflow-x: clip;
+}
+
+/* Keep focused fields clear of the fixed bottom nav. */
+html {
+  scroll-padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* Instant taps: no double-tap-zoom delay, no long-press callout on controls. */
+a,
+button,
+[role="button"],
+[role="radio"],
+[role="switch"],
+label,
+summary {
+  touch-action: manipulation;
+}
+button,
+[role="button"],
+nav a {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Pressed feedback for tappable controls. */
+.pressable {
+  transition: transform 0.12s ease, background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.pressable:active {
+  transform: scale(0.96);
+}
+
+/* Skeleton placeholder */
+.skeleton {
+  background: rgb(var(--line));
+  border-radius: 12px;
 }
 
 a {

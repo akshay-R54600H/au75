@@ -4,6 +4,7 @@ export const THEMES: { id: ThemeId; name: string }[] = [
   { id: "system", name: "Auto" },
   { id: "light", name: "Light" },
   { id: "dark", name: "Dark" },
+  { id: "sakura", name: "Sakura" },
 ];
 
 /** localStorage key mirrored by the layout pre-hydration script. */

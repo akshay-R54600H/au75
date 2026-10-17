@@ -119,16 +119,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Apply theme to <html data-theme> and mirror it to localStorage so the
-  // layout's pre-hydration script can avoid a flash.
+  // layout's pre-hydration script can avoid a flash. Wait for the stored
+  // settings to load, or the default theme would briefly replace the saved one.
   useEffect(() => {
+    if (state.isLoading) return;
     const theme = state.settings.theme;
     document.documentElement.dataset.theme = theme;
+    // Tint the mobile browser bar to match the Sakura sky.
+    document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]').forEach((m) => {
+      m.dataset.default ??= m.content;
+      m.content = theme === "sakura" ? "#fff5f7" : m.dataset.default;
+    });
     try {
       localStorage.setItem(THEME_STORAGE_KEY, theme);
     } catch {
       /* private mode etc. */
     }
-  }, [state.settings.theme]);
+  }, [state.settings.theme, state.isLoading]);
 
   useEffect(() => {
     const on = () => dispatch({ type: "SET_OFFLINE", offline: false });

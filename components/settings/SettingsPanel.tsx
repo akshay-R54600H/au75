@@ -7,8 +7,9 @@ import { useApp } from "@/lib/context/AppContext";
 import { forgetSavedLogin, loadQuickLogin } from "@/lib/platform/credentials";
 import { THEMES } from "@/lib/themes";
 import { APP_VERSION } from "@/lib/tnc";
-import type { AppSettings, ExamMilestone } from "@/lib/models/types";
+import type { AppSettings, ExamMilestone, ThemeId } from "@/lib/models/types";
 import Button from "@/components/ui/Button";
+import { SakuraFlowerIcon } from "@/components/theme/SakuraBlossoms";
 import InstallButton from "@/components/pwa/InstallButton";
 
 const INPUT = "w-full min-h-11 rounded-xl border-2 border-paper-edge bg-surface px-3.5 py-2.5 text-base text-ink focus:border-pen focus:outline-none transition";
@@ -65,11 +66,60 @@ function Segmented<T extends string>({ value, options, onChange }: { value: T; o
           key={o.id}
           type="button"
           onClick={() => onChange(o.id)}
-          className={`rounded-full px-3 py-1 text-xs font-bold transition-colors ${value === o.id ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}
+          className={`pressable min-h-9 rounded-full px-3.5 text-xs font-bold ${value === o.id ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}
         >
           {o.name}
         </button>
       ))}
+    </div>
+  );
+}
+
+/** Fixed preview colours — each swatch shows its own theme, whatever is active. */
+const THEME_PREVIEW: Record<ThemeId, { bg: string; card: string; dot: string }> = {
+  system: { bg: "linear-gradient(135deg, #fdfcf7 50%, #161621 50%)", card: "#ffffff", dot: "#2f3aa3" },
+  light: { bg: "#fdfcf7", card: "#ffffff", dot: "#2f3aa3" },
+  dark: { bg: "#161621", card: "#1d1d2c", dot: "#8792ff" },
+  sakura: { bg: "linear-gradient(160deg, #fff9fa, #fde0ea)", card: "rgba(255,255,255,0.85)", dot: "#d64f7e" },
+};
+
+function ThemePicker({ value, onChange }: { value: ThemeId; onChange: (v: ThemeId) => void }) {
+  return (
+    <div role="radiogroup" aria-label="Theme" className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {THEMES.map((t) => {
+        const p = THEME_PREVIEW[t.id];
+        const active = value === t.id;
+        return (
+          <button
+            key={t.id}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(t.id)}
+            className={`pressable group rounded-2xl border-2 p-1.5 text-left ${
+              active ? "border-pen shadow-[0_6px_18px_-10px_rgb(var(--pen)/0.7)]" : "border-line hover:border-line-strong"
+            }`}
+          >
+            <span className="relative block h-14 overflow-hidden rounded-xl ring-1 ring-inset ring-black/5" style={{ background: p.bg }}>
+              <span
+                className="absolute bottom-2 left-2 h-6 w-10 rounded-md shadow-sm"
+                style={{ background: p.card, border: "1px solid rgba(0,0,0,0.06)" }}
+              />
+              <span className="absolute bottom-3.5 left-3.5 h-2 w-2 rounded-full" style={{ background: p.dot }} />
+              {t.id === "sakura" && (
+                <>
+                  <SakuraFlowerIcon size={22} className="absolute right-1.5 top-1 transition-transform duration-500 group-hover:rotate-45" />
+                  <SakuraFlowerIcon size={13} className="absolute right-8 top-6 opacity-80" />
+                  <SakuraFlowerIcon size={10} className="absolute bottom-1.5 right-3 opacity-70" />
+                </>
+              )}
+            </span>
+            <span className={`mt-1.5 block px-1 text-xs font-bold ${active ? "text-pen" : "text-muted"}`}>
+              {t.name}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -134,7 +184,7 @@ export default function SettingsPanel() {
       <Section title="Target">
         <Row label="Attendance target" hint="Most AU courses need 75%">
           <div className="flex items-center gap-1">
-            <input type="number" min={1} max={100} value={target} onChange={(e) => onTarget(e.target.value)} className={`${INPUT} w-20 text-right`} />
+            <input type="number" inputMode="decimal" enterKeyHint="done" min={1} max={100} value={target} onChange={(e) => onTarget(e.target.value)} className={`${INPUT} w-20 text-right`} />
             <span className="text-sm text-muted">%</span>
           </div>
         </Row>
@@ -191,10 +241,11 @@ export default function SettingsPanel() {
       </Section>
 
       <Section title="Display">
-        <Row label="Theme">
-          <Segmented value={settings.theme} options={THEMES} onChange={(theme) => updateSettings({ theme })} />
-        </Row>
-        <Row label="Show decimals" hint="74.6% instead of 75%">
+        <div className="py-2.5">
+          <div className="text-sm font-semibold text-ink">Theme</div>
+          <ThemePicker value={settings.theme} onChange={(theme) => updateSettings({ theme })} />
+        </div>
+        <Row label="Show decimals" hint="74.6% instead of 74%">
           <Toggle checked={settings.showDecimals} onChange={(showDecimals) => updateSettings({ showDecimals })} label="Show decimals" />
         </Row>
         <Row label="Phone app" hint="Add AU75 to your home screen">

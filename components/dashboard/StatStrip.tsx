@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronRight } from "lucide-react";
 import { useApp } from "@/lib/context/AppContext";
-import { calcOverallAttendance, calcOverallPrediction } from "@/lib/calculations/engine";
+import { calcOverallAttendance, calcOverallPrediction, getSubjectStatus, upcomingSessions } from "@/lib/calculations/engine";
 import { subjectVerdict } from "@/lib/calculations/summary";
-import { fmtPct, fmtDateTime, isSessionFuture } from "@/lib/calculations/dates";
+import { fmtPct, fmtDateTime } from "@/lib/calculations/dates";
 import CircularProgress from "@/components/ui/CircularProgress";
 import StatBreakdownModal from "@/components/dashboard/StatBreakdownModal";
 
@@ -40,23 +41,26 @@ function Stat({
             }
           : undefined
       }
-      className={`card min-w-[140px] flex-1 snap-start px-4 py-3 text-left transition-all ${
+      className={`card relative min-w-0 px-3 py-3 text-left transition-all sm:px-4 ${
         clickable
-          ? "cursor-pointer hover:border-line-strong hover:shadow-md active:scale-[0.98] group focus-visible:ring-2 focus-visible:ring-pen"
+          ? "pressable cursor-pointer hover:border-line-strong hover:shadow-md group focus-visible:ring-2 focus-visible:ring-pen"
           : ""
       }`}
       aria-haspopup={clickable ? "dialog" : undefined}
     >
-      <div className="flex items-center justify-between">
-        <div className="eyebrow">{label}</div>
+      <div className="flex items-center justify-between gap-1 pr-4 sm:pr-0">
+        <div className="eyebrow max-sm:text-[10px] max-sm:tracking-[0.08em]">{label}</div>
         {clickable && (
-          <span className="text-[10px] font-semibold text-faint opacity-70 group-hover:opacity-100 group-hover:text-ink transition-opacity">
-            View →
-          </span>
+          <>
+            <ChevronRight size={14} className="absolute right-2 top-3 text-faint sm:hidden" aria-hidden="true" />
+            <span className="hidden text-[10px] font-semibold text-faint opacity-70 transition-opacity group-hover:text-ink group-hover:opacity-100 sm:inline">
+              View →
+            </span>
+          </>
         )}
       </div>
       <div className={`font-hand text-3xl font-bold leading-tight ${color}`}>{value}</div>
-      {sub && <div className="text-xs text-muted">{sub}</div>}
+      {sub && <div className="text-[11px] leading-snug text-muted sm:text-xs">{sub}</div>}
     </Component>
   );
 }
@@ -70,7 +74,7 @@ export default function StatStrip() {
   });
 
   const overall = calcOverallAttendance(state.subjects);
-  const future = state.sessions.filter((s) => s.isFuture && isSessionFuture(s));
+  const future = upcomingSessions(state.sessions, state.academicDays, undefined, state.settings.lastSyncedAt);
   const projected = calcOverallPrediction(state.subjects, future, state.predictions);
 
   const atRisk = state.subjects.filter(
@@ -80,12 +84,19 @@ export default function StatStrip() {
     (acc, s) => acc + subjectVerdict(s.attended, s.total, attendanceTarget, requirement).skips,
     0
   );
-  const plannedSkips = Object.values(state.predictions).filter((p) => p === "absent").length;
+  // Only skips the projection actually counts (not ones on classes already in the portal totals).
+  const plannedSkips = future.filter((s) => state.predictions[s.id] === "absent").length;
 
   return (
     <section aria-label="Overview" className="mb-6">
       <div className="card mb-3 flex items-center gap-5 p-5">
-        <CircularProgress value={overall.percentage} size={104} target={attendanceTarget} decimals={showDecimals} />
+        <CircularProgress
+          value={overall.percentage}
+          size={104}
+          target={attendanceTarget}
+          decimals={showDecimals}
+          status={getSubjectStatus(overall.attended, overall.total, attendanceTarget, requirement)}
+        />
         <div className="min-w-0">
           <div className="eyebrow">Overall attendance</div>
           <div className="mt-1 text-sm text-muted">
@@ -104,7 +115,7 @@ export default function StatStrip() {
         </div>
       </div>
 
-      <div className="no-scrollbar -mx-4 flex snap-x gap-3 overflow-x-auto px-4 md:mx-0 md:px-0">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <Stat
           label="Safe skips"
           value={String(skipsTotal)}

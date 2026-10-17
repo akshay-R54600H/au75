@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useApp } from "@/lib/context/AppContext";
@@ -8,6 +8,8 @@ import type { ClassSession, PredictionState } from "@/lib/models/types";
 import { todayISO, fmtLong, fmtTime, fmtRange, isSessionFuture } from "@/lib/calculations/dates";
 import PredictionToggle from "@/components/ui/PredictionToggle";
 import WeekGrid from "./WeekGrid";
+import { useSwipe } from "@/lib/hooks/useSwipe";
+import { haptic } from "@/lib/haptics";
 
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -22,6 +24,18 @@ export default function CalendarView() {
   const [y, setY] = useState(() => new Date().getFullYear());
   const [m, setM] = useState(() => new Date().getMonth());
   const [selected, setSelected] = useState<string | null>(today);
+  const detailRef = useRef<HTMLDivElement>(null);
+  const userPicked = useRef(false);
+
+  // After tapping a day, bring its class list into view if it sits below the fold.
+  useEffect(() => {
+    if (!userPicked.current || !selected) return;
+    userPicked.current = false;
+    const el = detailRef.current;
+    if (el && el.getBoundingClientRect().top > window.innerHeight - 160) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [selected]);
 
   const byDate = useMemo(() => {
     const map = new Map<string, ClassSession[]>();
@@ -38,11 +52,25 @@ export default function CalendarView() {
   const firstDay = new Date(y, m, 1).getDay();
   const dateStr = (d: number) => `${y}-${pad(m + 1)}-${pad(d)}`;
 
-  function shift(delta: number) {
+  const [dir, setDir] = useState<1 | -1 | 0>(0);
+
+  function shift(delta: 1 | -1) {
     const d = new Date(y, m + delta, 1);
+    setDir(delta);
     setY(d.getFullYear());
     setM(d.getMonth());
   }
+
+  const swipe = useSwipe(
+    () => {
+      haptic(6);
+      shift(1);
+    },
+    () => {
+      haptic(6);
+      shift(-1);
+    }
+  );
 
   const selectedSessions = selected ? byDate.get(selected) ?? [] : [];
   const selectedFuture = selectedSessions.filter((s) => s.isFuture && isSessionFuture(s));
@@ -53,21 +81,24 @@ export default function CalendarView() {
     setPredictions(entries);
   }
 
-  const navBtn = "flex h-9 w-9 items-center justify-center rounded-full border-2 border-line-strong text-ink hover:border-ink/50";
+  const navBtn = "pressable flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-line-strong text-ink hover:border-ink/50";
   const tab = (v: typeof view) =>
-    `rounded-full px-4 py-1.5 text-sm font-bold transition-colors ${view === v ? "bg-ink text-paper" : "text-muted hover:text-ink"}`;
+    `pressable min-h-9 rounded-full px-3.5 text-sm font-bold sm:px-4 ${view === v ? "bg-ink text-paper" : "text-muted hover:text-ink"}`;
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <button onClick={() => shift(-1)} className={navBtn} aria-label="Previous month"><ChevronLeft size={18} /></button>
-          <div className="min-w-[150px] text-center font-hand text-2xl font-bold text-ink">{MONTHS[m]} {y}</div>
+          <div className="min-w-[6.5rem] text-center font-hand text-2xl font-bold tabular-nums text-ink sm:min-w-[150px]" aria-live="polite">
+            <span className="sm:hidden">{MONTHS[m].slice(0, 3)}</span>
+            <span className="hidden sm:inline">{MONTHS[m]}</span> {y}
+          </div>
           <button onClick={() => shift(1)} className={navBtn} aria-label="Next month"><ChevronRight size={18} /></button>
         </div>
         <div className="flex rounded-full border-2 border-line-strong p-0.5">
-          <button className={tab("month")} onClick={() => setView("month")}>Month</button>
-          <button className={tab("week")} onClick={() => setView("week")}>Week</button>
+          <button className={tab("month")} onClick={() => setView("month")} aria-pressed={view === "month"}>Month</button>
+          <button className={tab("week")} onClick={() => setView("week")} aria-pressed={view === "week"}>Week</button>
         </div>
       </div>
 
@@ -80,7 +111,11 @@ export default function CalendarView() {
               <div key={d} className="py-1 text-center text-[11px] font-bold uppercase text-faint">{d}</div>
             ))}
           </div>
-          <div className="grid grid-cols-7 gap-1">
+          <div
+            key={`${y}-${m}`}
+            {...swipe}
+            className={`grid grid-cols-7 gap-1 ${dir > 0 ? "animate-slide-in-right" : dir < 0 ? "animate-slide-in-left" : ""}`}
+          >
             {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const ds = dateStr(i + 1);
@@ -91,10 +126,13 @@ export default function CalendarView() {
               return (
                 <button
                   key={ds}
-                  onClick={() => setSelected(isSel ? null : ds)}
+                  onClick={() => {
+                    userPicked.current = true;
+                    setSelected(isSel ? null : ds);
+                  }}
                   aria-pressed={isSel}
                   aria-label={`${i + 1} ${MONTHS[m]}, ${sessions.length} classes`}
-                  className={`flex min-h-[56px] flex-col items-center rounded-xl border-2 p-1 transition-colors sm:min-h-[64px] ${
+                  className={`pressable flex min-h-[56px] flex-col items-center rounded-xl border-2 p-1 sm:min-h-[64px] ${
                     isSel ? "border-accent bg-accent-soft/60" : isToday ? "border-ink/40 bg-surface" : "border-line bg-surface hover:border-line-strong"
                   } ${past ? "opacity-60" : ""}`}
                 >
@@ -120,13 +158,13 @@ export default function CalendarView() {
           </div>
 
           {selected && (
-            <div className="card mt-5 p-5 animate-fade-up">
+            <div ref={detailRef} className="card mt-5 scroll-mt-20 p-5 animate-fade-up">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="font-hand text-2xl font-bold text-ink">{fmtLong(selected)}</div>
                 {selectedFuture.length > 1 && (
                   <div className="flex gap-1.5">
-                    <button onClick={() => setDay("present")} className="rounded-full border-2 border-success px-3 py-1 text-xs font-bold text-success hover:bg-success-soft">Attend all</button>
-                    <button onClick={() => setDay("absent")} className="rounded-full border-2 border-danger px-3 py-1 text-xs font-bold text-danger hover:bg-danger-soft">Skip the day</button>
+                    <button onClick={() => setDay("present")} className="pressable min-h-9 rounded-full border-2 border-success px-3.5 text-xs font-bold text-success hover:bg-success-soft">Attend all</button>
+                    <button onClick={() => setDay("absent")} className="pressable min-h-9 rounded-full border-2 border-danger px-3.5 text-xs font-bold text-danger hover:bg-danger-soft">Skip the day</button>
                   </div>
                 )}
               </div>

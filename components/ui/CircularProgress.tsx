@@ -1,3 +1,6 @@
+import type { SubjectStatus } from "@/lib/models/types";
+import { fmtPct } from "@/lib/calculations/dates";
+
 interface Props {
   value: number;
   size?: number;
@@ -5,17 +8,24 @@ interface Props {
   /** Threshold below which the ring turns red. */
   target?: number;
   decimals?: boolean;
+  /** Exact status from the engine (respects the "strictly above" rule); overrides `target`. */
+  status?: SubjectStatus;
 }
 
-export default function CircularProgress({ value, size = 88, label, target = 75, decimals = false }: Props) {
+const STATUS_COLOR: Record<SubjectStatus, string> = {
+  safe: "rgb(var(--success))",
+  warning: "rgb(var(--warning))",
+  danger: "rgb(var(--danger))",
+};
+
+export default function CircularProgress({ value, size = 88, label, target = 75, decimals = false, status }: Props) {
   const clamped = Math.min(100, Math.max(0, value));
   const stroke = Math.max(6, size / 12);
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (clamped / 100) * circumference;
-  const color =
-    clamped < target ? "rgb(var(--danger))" : clamped < target + 5 ? "rgb(var(--warning))" : "rgb(var(--success))";
-  const text = decimals ? clamped.toFixed(1) : String(Math.round(clamped));
+  const color = STATUS_COLOR[status ?? (clamped < target ? "danger" : clamped < target + 5 ? "warning" : "safe")];
+  const text = fmtPct(clamped, decimals);
 
   return (
     <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>

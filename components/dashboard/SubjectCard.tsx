@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import type { Subject } from "@/lib/models/types";
-import { calcPercentage, calcPrediction } from "@/lib/calculations/engine";
-import { subjectVerdict } from "@/lib/calculations/summary";
-import { fmtPct, isSessionFuture } from "@/lib/calculations/dates";
+import { calcPercentage, calcPrediction, upcomingSessions } from "@/lib/calculations/engine";
+import { subjectVerdict, planVerdict } from "@/lib/calculations/summary";
+import { fmtPct } from "@/lib/calculations/dates";
 import { useApp } from "@/lib/context/AppContext";
 import ProgressBar from "@/components/ui/ProgressBar";
 
@@ -23,14 +23,14 @@ export default function SubjectCard({
   const pct = calcPercentage(subject.attended, subject.total);
   const v = subjectVerdict(subject.attended, subject.total, attendanceTarget, requirement);
 
-  const future = state.sessions.filter((s) => s.subjectId === subject.id && s.isFuture && isSessionFuture(s));
+  const future = upcomingSessions(state.sessions, state.academicDays, undefined, state.settings.lastSyncedAt).filter((s) => s.subjectId === subject.id);
   const plan = calcPrediction(subject, future, state.predictions);
-  const pv = subjectVerdict(plan.predictedAttended, plan.predictedTotal, attendanceTarget, requirement);
+  const pv = planVerdict(plan, attendanceTarget, requirement);
 
   return (
     <Link
       href={`${baseHref}?subject=${encodeURIComponent(subject.id)}`}
-      className="card group block p-4 transition-transform hover:-translate-y-0.5"
+      className="card pressable group block p-4 hover:-translate-y-0.5"
       aria-label={`${subject.name}: ${fmtPct(pct, true)}%, ${v.headline}`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -49,7 +49,7 @@ export default function SubjectCard({
       </div>
 
       <div className="my-3">
-        <ProgressBar value={pct} target={attendanceTarget} label={`${subject.name} attendance`} />
+        <ProgressBar value={pct} target={attendanceTarget} status={v.status} label={`${subject.name} attendance`} />
       </div>
 
       <div className="flex items-center justify-between gap-2">

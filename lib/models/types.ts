@@ -10,7 +10,7 @@ export type SubjectStatus = "safe" | "warning" | "danger";
 
 export type AcademicDayType = "working" | "holiday" | "exam" | "break" | "unknown";
 
-export type ThemeId = "system" | "light" | "dark";
+export type ThemeId = "system" | "light" | "dark" | "sakura";
 
 export interface Subject {
   id: string;

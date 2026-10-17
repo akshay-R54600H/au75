@@ -7,6 +7,7 @@ import ServiceWorker from "@/components/pwa/ServiceWorker";
 import MaintenanceGuard from "@/components/maintenance/MaintenanceGuard";
 import AnalyticsTracker from "@/components/analytics/AnalyticsTracker";
 import NotificationManager from "@/components/notifications/NotificationManager";
+import SakuraBlossoms from "@/components/theme/SakuraBlossoms";
 import { Analytics } from "@vercel/analytics/next";
 import { THEME_STORAGE_KEY } from "@/lib/themes";
 
@@ -29,6 +30,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  // On-screen keyboard shrinks the layout instead of covering inputs/sheets.
+  interactiveWidget: "resizes-content",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#fdfcf7" },
     { media: "(prefers-color-scheme: dark)", color: "#161621" },
@@ -47,6 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <AppProvider>
+          <SakuraBlossoms />
           <TncConsent />
           <MaintenanceGuard>{children}</MaintenanceGuard>
           <NotificationManager />

@@ -1,12 +1,18 @@
+import type { SubjectStatus } from "@/lib/models/types";
+
 interface Props {
   value: number;
   target?: number;
   label?: string;
+  /** Exact status from the engine (respects the "strictly above" rule); overrides `target`. */
+  status?: SubjectStatus;
 }
 
-export default function ProgressBar({ value, target = 75, label }: Props) {
+const STATUS_BG: Record<SubjectStatus, string> = { safe: "bg-success", warning: "bg-warn", danger: "bg-danger" };
+
+export default function ProgressBar({ value, target = 75, label, status }: Props) {
   const clamped = Math.min(100, Math.max(0, value));
-  const color = clamped < target ? "bg-danger" : clamped < target + 5 ? "bg-warn" : "bg-success";
+  const color = STATUS_BG[status ?? (clamped < target ? "danger" : clamped < target + 5 ? "warning" : "safe")];
   return (
     <div
       role="progressbar"

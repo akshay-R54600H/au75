@@ -2,7 +2,8 @@
  * Tests against the REAL modules (Node ≥22.18 strips TS types natively).
  * Run with: node tests/summary.test.mjs
  */
-import { subjectVerdict } from "../lib/calculations/summary.ts";
+import { subjectVerdict, planVerdict } from "../lib/calculations/summary.ts";
+import { maxAbsences, classesRequiredToReachTarget, getSubjectStatus, upcomingSessions } from "../lib/calculations/engine.ts";
 import { fmtTime, fmtPct, minutes, todayISO, isSessionFuture } from "../lib/calculations/dates.ts";
 import { seal, open } from "../lib/server/sessionToken.ts";
 
@@ -25,13 +26,85 @@ assert(v.status === "danger", "9/14 = 64% strictly above → danger");
 v = subjectVerdict(1, 1, 75, "atLeast");
 assert(v.headline === "Can skip 0" || v.headline === "On the edge", "1/1 → 1/2 = 50% fails, so on the edge");
 
+console.log("\n=== exact target checks (no float drift) ===");
+v = subjectVerdict(57, 100, 57, "atLeast");
+assert(v.status !== "danger", "57/100 meets a 57% target (float gave 56.999…)");
+v = subjectVerdict(29, 50, 58, "atLeast");
+assert(v.status !== "danger", "29/50 meets a 58% target");
+v = subjectVerdict(11, 20, 55, "strictlyAbove");
+assert(v.status === "danger" && v.needed === 1, "11/20 = 55% is not strictly above 55% (float gave 55.000…1)");
+v = subjectVerdict(3, 4, 75, "strictlyAbove");
+assert(v.status === "danger" && v.needed === 1, "3/4 = 75% strictly above → attend 1 more (4/5 = 80%)");
+v = subjectVerdict(0, 0, 75, "atLeast");
+assert(v.status !== "danger", "0/0 (no classes yet) is not at risk");
+assert(getSubjectStatus(3, 4, 75, "strictlyAbove") === "danger", "status honours strictly-above at exactly the target");
+// Brute-force cross-check against pure integer math
+let mismatches = 0;
+for (const req of ["atLeast", "strictlyAbove"]) {
+  for (const target of [55, 57, 58, 60, 65, 75, 80, 85]) {
+    for (let total = 0; total <= 60; total++) {
+      for (let a = 0; a <= total; a++) {
+        const ok = (x, y) => (req === "atLeast" ? x * 100 >= target * y : x * 100 > target * y);
+        let skips = 0;
+        while (ok(a, total + skips + 1)) skips++;
+        let need = 0;
+        while (!ok(a + need, total + need)) need++;
+        if (maxAbsences(a, total, target, req) !== skips) mismatches++;
+        if (total > 0 && classesRequiredToReachTarget(a, total, target, req) !== need) mismatches++;
+      }
+    }
+  }
+}
+assert(mismatches === 0, `skips / classes-needed match exact integer math (${mismatches} mismatches)`);
+
+console.log("\n=== upcomingSessions ===");
+const at = new Date("2026-10-02T10:30:00");
+const mk = (id, date, startTime, endTime, isFuture = true) => ({ id, date, startTime, endTime, isFuture });
+const up = upcomingSessions(
+  [
+    mk("ended", "2026-10-02", "08:00", "08:55"),
+    mk("later", "2026-10-02", "14:00", "14:55"),
+    mk("holiday", "2026-10-05", "09:00", "09:55"),
+    mk("break", "2026-10-06", "09:00", "09:55"),
+    mk("normal", "2026-10-07", "09:00", "09:55"),
+  ],
+  [{ date: "2026-10-05", type: "holiday" }, { date: "2026-10-06", type: "break" }, { date: "2026-10-07", type: "working" }],
+  at
+).map((s) => s.id);
+assert(up.join(",") === "later,normal", "skips ended classes (even if cached as future), holidays and breaks");
+const upSynced = upcomingSessions(
+  [mk("before-sync", "2026-10-02", "07:00", "07:55", false), mk("after-sync", "2026-10-02", "08:00", "08:55", false), mk("later", "2026-10-02", "14:00", "14:55")],
+  [],
+  at,
+  new Date("2026-10-02T08:00:00").toISOString()
+).map((s) => s.id);
+assert(upSynced.join(",") === "after-sync,later", "a class that ended after the last sync still counts (portal doesn't have it yet)");
+
+console.log("\n=== planVerdict (skips within the planned semester) ===");
+// 18/20 now, 20 classes left all planned as attend → 38/40.
+let pv = planVerdict({ predictedAttended: 38, predictedTotal: 40, futurePresent: 20, futureAbsent: 0 }, 75, "atLeast");
+assert(pv.skips === 8, `38/40 planned → 8 skips (30/40 = 75%), got ${pv.skips}`);
+// Mark 4 of them as skip → 34/40: exactly 4 more, so 4 + 4 = 8 in total.
+pv = planVerdict({ predictedAttended: 34, predictedTotal: 40, futurePresent: 16, futureAbsent: 4 }, 75, "atLeast");
+assert(pv.skips === 4 && pv.headline === "Can skip 4 more", `after planning 4 skips → 4 more, got ${pv.skips}`);
+pv = planVerdict({ predictedAttended: 30, predictedTotal: 40, futurePresent: 12, futureAbsent: 8 }, 75, "atLeast");
+assert(pv.skips === 0 && pv.status === "warning", "exactly at target after planned skips → on the edge");
+pv = planVerdict({ predictedAttended: 28, predictedTotal: 40, futurePresent: 10, futureAbsent: 10 }, 75, "atLeast");
+assert(pv.status === "danger" && pv.needed === 2 && pv.headline === "Cancel 2 skips", "28/40 → cancel 2 planned skips (30/40)");
+pv = planVerdict({ predictedAttended: 20, predictedTotal: 40, futurePresent: 10, futureAbsent: 2 }, 75, "atLeast");
+assert(pv.status === "danger" && pv.headline === "Can't recover", "even cancelling every skip isn't enough → can't recover");
+// The old bug: projected numbers through subjectVerdict overstated it (10, then 5).
+assert(subjectVerdict(38, 40, 75, "atLeast").skips === 10, "(old model would have said 10 — extra classes, not converted ones)");
+
 console.log("\n=== dates ===");
 assert(fmtTime("08:00") === "8:00 am", "08:00 → 8:00 am");
 assert(fmtTime("14:05") === "2:05 pm", "14:05 → 2:05 pm");
 assert(fmtTime("12:00") === "12:00 pm", "12:00 → 12:00 pm");
 assert(fmtTime("00:30") === "12:30 am", "00:30 → 12:30 am");
 assert(minutes("09:30") === 570, "09:30 → 570 minutes");
-assert(fmtPct(74.56, false) === "75" && fmtPct(74.56, true) === "74.6", "fmtPct rounds / one decimal");
+assert(fmtPct(74.56, false) === "74" && fmtPct(74.56, true) === "74.5", "fmtPct truncates — 74.56% never shows as 75%");
+assert(fmtPct(74.96, true) === "74.9", "74.96% shows 74.9, not 75.0");
+assert(fmtPct((57 / 100) * 100, false) === "57" && fmtPct(75, true) === "75.0", "fmtPct keeps exact values despite float noise");
 assert(/^\d{4}-\d{2}-\d{2}$/.test(todayISO()), "todayISO is ISO date");
 assert(todayISO(new Date(2026, 0, 5)) === "2026-01-05", "todayISO pads month/day");
 
