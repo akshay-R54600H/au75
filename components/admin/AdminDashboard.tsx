@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, type FormEvent } from "react";
 import Logo from "@/components/ui/Logo";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
+import AdminAnnouncements from "./AdminAnnouncements";
 import {
   Radio,
   CheckCircle2,
@@ -291,7 +292,7 @@ export default function AdminDashboard({ adminEmail, onLogout }: AdminDashboardP
                 </span>
                 <span className="text-xs text-faint flex items-center gap-1">
                   <Clock size={12} />
-                  Live Polling: 10s
+                  Live Polling: 60s
                 </span>
               </div>
 
@@ -359,7 +360,7 @@ export default function AdminDashboard({ adminEmail, onLogout }: AdminDashboardP
                 Global Maintenance Switch
               </h2>
               <p className="mt-1 text-sm text-muted leading-relaxed">
-                Toggling this switch updates the server database immediately. Within 10 seconds, all open student sessions automatically transition.
+                Toggling this switch updates the server database immediately. Within about a minute, all open student sessions automatically transition.
               </p>
             </div>
 
@@ -487,7 +488,10 @@ export default function AdminDashboard({ adminEmail, onLogout }: AdminDashboardP
           </form>
         </section>
 
-        {/* Card 4: System & Database Diagnostics */}
+        {/* Card 4: Dashboard announcements */}
+        <AdminAnnouncements onSessionExpired={onLogout} onFeedback={setFeedback} />
+
+        {/* Card 5: System & Database Diagnostics */}
         <section className="card p-6 shadow-sm border border-line bg-surface/60">
           <span className="eyebrow flex items-center gap-1.5 mb-3">
             <Database size={13} className="text-pen" />
@@ -541,7 +545,7 @@ export default function AdminDashboard({ adminEmail, onLogout }: AdminDashboardP
               </span>
             ) : (
               <span>
-                All users currently using AU75 will automatically see the maintenance screen within approximately 10 seconds. You will still retain full access to this administrator panel.
+                All users currently using AU75 will automatically see the maintenance screen within about a minute. You will still retain full access to this administrator panel.
               </span>
             )}
           </p>

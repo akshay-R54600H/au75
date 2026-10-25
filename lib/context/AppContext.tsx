@@ -14,6 +14,7 @@ import type {
   AppSettings,
   PredictionState,
   ClassSession,
+  ThemeId,
 } from "@/lib/models/types";
 import {
   loadAppData,
@@ -25,7 +26,7 @@ import {
 } from "@/lib/storage/db";
 import { MOCK_SUBJECTS, MOCK_SESSIONS, MOCK_ACADEMIC_DAYS, DEFAULT_SETTINGS } from "@/lib/mock/data";
 import { REAL_SUBJECTS, REAL_SESSIONS } from "@/lib/portal/realTimetable";
-import { THEME_STORAGE_KEY } from "@/lib/themes";
+import { THEME_STORAGE_KEY, availableThemes, isRestrictedTheme } from "@/lib/themes";
 import { todayISO, isSessionFuture } from "@/lib/calculations/dates";
 
 interface AppState extends AppData {
@@ -41,6 +42,27 @@ type Action =
   | { type: "CLEAR_DATA" }
   | { type: "SET_OFFLINE"; offline: boolean }
   | { type: "REFRESH_FUTURE" };
+
+/** Browser-bar colour per scenic theme; others keep the layout's default. */
+const THEME_BAR_COLORS: Partial<Record<ThemeId, string>> = {
+  sakura: "#fff5f7",
+  batman: "#0d0d0f",
+  lighthouse: "#9a2318",
+};
+
+/** Apply a theme to <html data-theme>, the browser bar and the pre-hydration mirror. */
+function applyTheme(theme: ThemeId): void {
+  document.documentElement.dataset.theme = theme;
+  document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]').forEach((m) => {
+    m.dataset.default ??= m.content;
+    m.content = THEME_BAR_COLORS[theme] ?? m.dataset.default;
+  });
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+  } catch {
+    /* private mode etc. */
+  }
+}
 
 /** `isFuture` is computed at sync time; refresh it against today's date and timetable end times. */
 function refreshFuture(sessions: ClassSession[], now: Date = new Date()): ClassSession[] {
@@ -63,6 +85,8 @@ function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         ...action.payload,
+        // Decimals are always shown, even for imported backups that turned them off.
+        settings: { ...action.payload.settings, showDecimals: true },
         sessions: refreshFuture(action.payload.sessions),
         isLoading: false,
       };
@@ -79,7 +103,7 @@ function reducer(state: AppState, action: Action): AppState {
         sessions: REAL_SESSIONS,
         academicDays: MOCK_ACADEMIC_DAYS,
         predictions: {},
-        settings: { ...state.settings, lastSyncedAt: undefined },
+        settings: { ...state.settings, lastSyncedAt: undefined, syncedStudentId: undefined },
       };
     case "SET_OFFLINE":
       return { ...state, isOffline: action.offline };
@@ -124,18 +148,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (state.isLoading) return;
     const theme = state.settings.theme;
-    document.documentElement.dataset.theme = theme;
-    // Tint the mobile browser bar to match the Sakura sky.
-    document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]').forEach((m) => {
-      m.dataset.default ??= m.content;
-      m.content = theme === "sakura" ? "#fff5f7" : m.dataset.default;
+    applyTheme(theme);
+
+    // A student-only theme with no matching synced student (another account
+    // synced, data cleared, or an imported backup) falls back to Auto.
+    if (!isRestrictedTheme(theme)) return;
+    let cancelled = false;
+    availableThemes(state.settings.syncedStudentId).then((allowed) => {
+      if (cancelled || allowed.includes(theme)) return;
+      dispatch({ type: "UPDATE_SETTINGS", settings: { theme: "system" } });
+      saveSettings({ ...settingsRef.current, theme: "system" }).catch(console.error);
     });
-    try {
-      localStorage.setItem(THEME_STORAGE_KEY, theme);
-    } catch {
-      /* private mode etc. */
-    }
-  }, [state.settings.theme, state.isLoading]);
+    return () => {
+      cancelled = true;
+    };
+  }, [state.settings.theme, state.settings.syncedStudentId, state.isLoading]);
 
   useEffect(() => {
     const on = () => dispatch({ type: "SET_OFFLINE", offline: false });
@@ -182,7 +209,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const clearData = useCallback(() => {
     dispatch({ type: "CLEAR_DATA" });
     clearAllData().catch(console.error);
-    saveSettings({ ...settingsRef.current, lastSyncedAt: undefined }).catch(console.error);
+    saveSettings({ ...settingsRef.current, lastSyncedAt: undefined, syncedStudentId: undefined }).catch(console.error);
   }, []);
 
   const exportAppData = useCallback(() => exportData(), []);

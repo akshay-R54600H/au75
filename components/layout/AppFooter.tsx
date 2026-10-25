@@ -5,12 +5,19 @@ import { Heart } from "lucide-react";
 const FEEDBACK_URL = "https://tally.so/r/aQ1WNX";
 
 function Credit() {
+  // The Lighthouse theme swaps in its own credit; CSS picks the line so it
+  // works in server-rendered pages without a flash.
   return (
-    <p className="flex flex-wrap items-center justify-center gap-x-1 text-[11px] text-faint">
-      AI slop, lovingly made with zero
-      <Heart size={11} strokeWidth={2} className="fill-marker text-marker" aria-hidden />
-      by Akshay &amp; Pradeep.
-    </p>
+    <>
+      <p className="flex flex-wrap items-center justify-center gap-x-1 text-[11px] text-faint [[data-theme=lighthouse]_&]:hidden">
+        AI slop, lovingly made with zero
+        <Heart size={11} strokeWidth={2} className="fill-marker text-marker" aria-hidden />
+        by Akshay &amp; Pradeep.
+      </p>
+      <p className="hidden flex-wrap items-center justify-center gap-x-1 text-[11px] text-faint [[data-theme=lighthouse]_&]:flex">
+        Made with <span role="img" aria-label="love">❤️</span> by Pradeep
+      </p>
+    </>
   );
 }
 

@@ -8,7 +8,8 @@ import MaintenanceGuard from "@/components/maintenance/MaintenanceGuard";
 import AnalyticsTracker from "@/components/analytics/AnalyticsTracker";
 import NotificationManager from "@/components/notifications/NotificationManager";
 import SakuraBlossoms from "@/components/theme/SakuraBlossoms";
-import { Analytics } from "@vercel/analytics/next";
+import BatmanBackdrop from "@/components/theme/BatmanBackdrop";
+import LighthouseScene from "@/components/theme/LighthouseScene";
 import { THEME_STORAGE_KEY } from "@/lib/themes";
 
 const nunito = Nunito({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
@@ -51,13 +52,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <AppProvider>
           <SakuraBlossoms />
+          <BatmanBackdrop />
+          <LighthouseScene />
           <TncConsent />
           <MaintenanceGuard>{children}</MaintenanceGuard>
           <NotificationManager />
         </AppProvider>
         <AnalyticsTracker />
         <ServiceWorker />
-        <Analytics />
       </body>
     </html>
   );

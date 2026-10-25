@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 interface Props {
@@ -16,6 +17,24 @@ const DISMISS_DISTANCE = 110;
 /** Or a fast flick (px/ms) of any length. */
 const DISMISS_VELOCITY = 0.6;
 const EXIT_MS = 200;
+
+/**
+ * Dedicated container for all modals, appended to <body> on first use.
+ * Portalling straight into <body> breaks when React re-renders <body> (it is
+ * owned by the root layout): the dialog node gets swept away and closing the
+ * modal throws "removeChild … not a child of this node". In our own container
+ * the dialog stays a child of its portal parent even if the container is
+ * detached, and the container is re-attached on the next render.
+ */
+let modalRoot: HTMLDivElement | null = null;
+function getModalRoot(): HTMLDivElement {
+  if (!modalRoot) {
+    modalRoot = document.createElement("div");
+    modalRoot.id = "au75-modal-root";
+  }
+  if (!modalRoot.isConnected) document.body.appendChild(modalRoot);
+  return modalRoot;
+}
 
 /**
  * Bottom sheet on phones (slide up, drag the handle/header down to dismiss),
@@ -64,7 +83,7 @@ export default function Modal({ open, onClose, children, title, wide }: Props) {
     };
   }, [rendered]);
 
-  if (!rendered) return null;
+  if (!rendered || typeof document === "undefined") return null;
 
   function onPointerDown(e: React.PointerEvent) {
     if (e.pointerType === "mouse" || (e.target as HTMLElement).closest("button, a, input")) return;
@@ -91,7 +110,11 @@ export default function Modal({ open, onClose, children, title, wide }: Props) {
   const dragging = dragStart.current !== null;
   const dragHandlers = { onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp };
 
-  return (
+  // Portal out of the page tree: an ancestor with a transform or backdrop
+  // filter (the page-in animation, the blurred header, scenic-theme cards)
+  // would otherwise become the containing block for `fixed`, trapping the
+  // sheet inside it instead of covering the screen.
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -138,6 +161,7 @@ export default function Modal({ open, onClose, children, title, wide }: Props) {
         </div>
         <div className="overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom,0px)] sm:pb-0">{children}</div>
       </div>
-    </div>
+    </div>,
+    getModalRoot()
   );
 }

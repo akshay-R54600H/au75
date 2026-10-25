@@ -3,7 +3,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import Sidebar from "./Sidebar";
-import BottomNav from "./BottomNav";
 import AppFooter from "./AppFooter";
 import Logo from "@/components/ui/Logo";
 import { useApp } from "@/lib/context/AppContext";
@@ -76,8 +75,6 @@ export default function AppShell({ children, title, action }: Props) {
           </div>
         </main>
       </div>
-
-      <BottomNav />
     </div>
   );
 }

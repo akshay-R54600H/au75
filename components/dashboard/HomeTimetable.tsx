@@ -130,18 +130,19 @@ export default function HomeTimetable() {
           <button
             type="button"
             onClick={() => changeWeek(-1)}
-            className="pressable flex h-10 w-10 items-center justify-center rounded-full border-2 border-line-strong text-ink hover:border-ink/50 md:h-8 md:w-8"
+            className="pressable flex h-10 w-10 items-center justify-center rounded-full border-2 border-line-strong bg-surface text-ink hover:border-ink/50 md:h-8 md:w-8"
             aria-label="Previous week"
           >
             <ChevronLeft size={16} />
           </button>
-          <span className="min-w-[7.5rem] text-center text-xs font-semibold tabular-nums text-muted">
+          {/* Solid pill so the range stays readable over scenic theme backgrounds. */}
+          <span className="min-w-[7.5rem] rounded-full bg-surface px-2.5 py-1 text-center text-xs font-semibold tabular-nums text-ink/80">
             {fmtDay(week[0])} – {fmtDay(week[week.length - 1])}
           </span>
           <button
             type="button"
             onClick={() => changeWeek(1)}
-            className="pressable flex h-10 w-10 items-center justify-center rounded-full border-2 border-line-strong text-ink hover:border-ink/50 md:h-8 md:w-8"
+            className="pressable flex h-10 w-10 items-center justify-center rounded-full border-2 border-line-strong bg-surface text-ink hover:border-ink/50 md:h-8 md:w-8"
             aria-label="Next week"
           >
             <ChevronRight size={16} />
@@ -160,7 +161,10 @@ export default function HomeTimetable() {
               onClick={() => selectDay(d)}
               aria-pressed={on}
               className={`pressable min-h-9 shrink-0 snap-start rounded-full px-4 text-xs font-bold uppercase tracking-wide ${
-                on ? "border-2 border-ink bg-ink text-paper" : "border-2 border-line-strong text-muted hover:border-ink/40 hover:text-ink"
+                on
+                  ? "border-2 border-ink bg-ink text-paper"
+                  : // Solid fill so the label stays readable over scenic theme backgrounds.
+                    "border-2 border-line-strong bg-surface text-ink/80 hover:border-ink/40 hover:text-ink"
               }`}
             >
               {LABELS[i]}

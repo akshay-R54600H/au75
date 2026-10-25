@@ -52,14 +52,15 @@ export function minutes(t: string): number {
 }
 
 /**
- * Truncates instead of rounding: 74.6% must never display as "75%" (or
- * 74.96% as "75.0%") — that reads as meeting a 75% target when it doesn't.
- * The epsilon keeps float noise like 56.999…9 (= 57/100*100) at 57.
+ * Standard rounding (half up): 74.56% → "74.6", 74.44% → "74.4".
+ * The epsilon keeps float noise like 56.999…9 (= 57/100*100) at 57 and makes
+ * exact halves such as 74.45 (stored as 74.4499…) round up as expected.
+ * Status labels use exact integer math, so they're unaffected by display rounding.
  */
 export function fmtPct(value: number, decimals: boolean): string {
   return decimals
-    ? (Math.floor(value * 10 + 1e-6) / 10).toFixed(1)
-    : String(Math.floor(value + 1e-6));
+    ? (Math.round(value * 10 + 1e-6) / 10).toFixed(1)
+    : String(Math.round(value + 1e-6));
 }
 
 /**

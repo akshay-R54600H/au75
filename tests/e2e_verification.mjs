@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 
 const BASE = "http://localhost:3000";
+// Same admin credentials the server under test was started with.
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
+  throw new Error("Set ADMIN_EMAIL and ADMIN_PASSWORD (matching the running server) before running this script.");
+}
 
 async function runTests() {
   console.log("=== Starting End-to-End Server API & Route Verification ===");
@@ -33,7 +39,7 @@ async function runTests() {
   const resWrongLogin = await fetch(`${BASE}/api/admin/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: "admin@au75.vercel.app", password: "WrongPassword" }),
+    body: JSON.stringify({ email: ADMIN_EMAIL, password: "WrongPassword" }),
   });
   assert.equal(resWrongLogin.status, 401);
   const wrongData = await resWrongLogin.json();
@@ -46,7 +52,7 @@ async function runTests() {
   const resLogin = await fetch(`${BASE}/api/admin/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: "admin@au75.vercel.app", password: "Harsha@2009" }),
+    body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD }),
   });
   assert.equal(resLogin.status, 200);
   const loginData = await resLogin.json();
@@ -72,7 +78,7 @@ async function runTests() {
   const sessionData = await resSession.json();
   console.log("Session data:", sessionData);
   assert.equal(sessionData.authenticated, true);
-  assert.equal(sessionData.email, "admin@au75.vercel.app");
+  assert.equal(sessionData.email, ADMIN_EMAIL.trim().toLowerCase());
   console.log("✓ Admin session verified");
 
   // 7. Protected admin mutation rejected without cookie

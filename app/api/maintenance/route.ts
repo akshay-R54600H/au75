@@ -25,16 +25,12 @@ export async function GET() {
     );
   } catch (error) {
     console.error("[api/maintenance] Error fetching maintenance status:", error);
-    // If an unexpected error occurs, do NOT force maintenance mode; return false
+    // Don't report a made-up `false` — that would silently switch maintenance off.
+    // A non-2xx makes clients keep their last known state.
     return NextResponse.json(
+      { error: "Unable to determine maintenance status." },
       {
-        maintenanceMode: false,
-        title: "AU75 is under maintenance",
-        message: "We're making a few improvements. Please check back soon.",
-        updatedAt: new Date().toISOString(),
-      },
-      {
-        status: 200,
+        status: 503,
         headers: {
           "Cache-Control": "no-store, max-age=0",
         },

@@ -10,7 +10,7 @@ export type SubjectStatus = "safe" | "warning" | "danger";
 
 export type AcademicDayType = "working" | "holiday" | "exam" | "break" | "unknown";
 
-export type ThemeId = "system" | "light" | "dark" | "sakura";
+export type ThemeId = "system" | "light" | "dark" | "sakura" | "batman" | "lighthouse";
 
 export interface Subject {
   id: string;
@@ -67,6 +67,8 @@ export interface AppSettings {
   showDecimals: boolean;
   milestones: ExamMilestone[];
   lastSyncedAt?: string; // ISO datetime — undefined ⇒ demo data
+  /** Portal student ID (lower-case) of the last successful sync on this device. */
+  syncedStudentId?: string;
   notifications?: NotificationSettings;
 }
 

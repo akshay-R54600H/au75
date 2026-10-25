@@ -2,9 +2,11 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { LucideIcon, AlertTriangle, Info, RefreshCw } from "lucide-react";
+import { ANNOUNCEMENT_STYLES, announcementIconFor, isAnnouncementType, type PublicAnnouncement } from "@/lib/announcements";
 
 export interface DisclaimerNotice {
-  type: "nptel" | "erp" | "sync";
+  id: string;
+  type: string;
   title: string;
   message: string;
   border: string;
@@ -15,6 +17,7 @@ export interface DisclaimerNotice {
 
 export const NOTICES: DisclaimerNotice[] = [
   {
+    id: "builtin-nptel",
     type: "nptel",
     title: "NPTEL Notice",
     message:
@@ -25,6 +28,7 @@ export const NOTICES: DisclaimerNotice[] = [
     iconColor: "text-warn",
   },
   {
+    id: "builtin-erp",
     type: "erp",
     title: "AU ERP Data",
     message:
@@ -35,6 +39,7 @@ export const NOTICES: DisclaimerNotice[] = [
     iconColor: "text-pen",
   },
   {
+    id: "builtin-sync",
     type: "sync",
     title: "Sync Notice",
     message:
@@ -46,7 +51,37 @@ export const NOTICES: DisclaimerNotice[] = [
   },
 ];
 
+/** Last announcements fetched, so the carousel shows them offline / before the fetch lands. */
+const ANNOUNCEMENTS_CACHE_KEY = "au75.announcements";
+/** Re-check for admin changes while the dashboard stays open. */
+const ANNOUNCEMENTS_REFRESH_MS = 5 * 60_000;
+
+function toNotice(a: PublicAnnouncement): DisclaimerNotice | null {
+  if (!a || typeof a.id !== "string" || !a.title || !a.message || !isAnnouncementType(a.type)) return null;
+  // Expired since it was cached.
+  if (a.expiresAt && Date.parse(a.expiresAt) <= Date.now()) return null;
+  const { border, bg, iconColor } = ANNOUNCEMENT_STYLES[a.type];
+  const icon = announcementIconFor(a.type, a.icon);
+  return { id: a.id, type: a.type, title: a.title, message: a.message, border, bg, icon, iconColor };
+}
+
+function buildNotices(announcements: PublicAnnouncement[]): DisclaimerNotice[] {
+  const admin = announcements.map(toNotice).filter((n): n is DisclaimerNotice => n !== null);
+  return [...admin, ...NOTICES];
+}
+
+function readCachedAnnouncements(): PublicAnnouncement[] {
+  try {
+    const raw = localStorage.getItem(ANNOUNCEMENTS_CACHE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 export default function DisclaimerCarousel() {
+  const [notices, setNotices] = useState<DisclaimerNotice[]>(NOTICES);
   const [activeIndex, setActiveIndex] = useState(0);
   const [exitingIndex, setExitingIndex] = useState<number | null>(null);
   const [incomingIndex, setIncomingIndex] = useState<number | null>(null);
@@ -55,8 +90,53 @@ export default function DisclaimerCarousel() {
 
   const activeIndexRef = useRef(activeIndex);
   activeIndexRef.current = activeIndex;
+  const countRef = useRef(notices.length);
+  countRef.current = notices.length;
 
   const isTransitioningRef = useRef(false);
+
+  /** Notice at any index, wrapping — safe if the list shrank mid-animation. */
+  const at = (i: number) => notices[i % notices.length];
+
+  // Load admin announcements: cached copy first, then the live list.
+  useEffect(() => {
+    const apply = (announcements: PublicAnnouncement[]) => {
+      const next = buildNotices(announcements);
+      setNotices(next);
+      setActiveIndex((i) => (i < next.length ? i : 0));
+    };
+
+    apply(readCachedAnnouncements());
+
+    const load = async () => {
+      if (typeof navigator !== "undefined" && !navigator.onLine) return;
+      try {
+        const res = await fetch("/api/announcements", { cache: "no-store" });
+        if (!res.ok) return; // keep last known list
+        const data = await res.json();
+        if (!Array.isArray(data.announcements)) return;
+        apply(data.announcements);
+        try {
+          localStorage.setItem(ANNOUNCEMENTS_CACHE_KEY, JSON.stringify(data.announcements));
+        } catch {
+          /* private mode etc. */
+        }
+      } catch {
+        // Offline or network error: keep showing the cached list.
+      }
+    };
+
+    load();
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") load();
+    }, ANNOUNCEMENTS_REFRESH_MS);
+    const onVisible = () => document.visibilityState === "visible" && load();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
 
   // Check prefers-reduced-motion
   useEffect(() => {
@@ -77,7 +157,7 @@ export default function DisclaimerCarousel() {
     isTransitioningRef.current = true;
 
     const current = activeIndexRef.current;
-    const next = (current + 1) % NOTICES.length;
+    const next = (current + 1) % countRef.current;
 
     // Trigger departure of current card upward & arrival of next card from the bottom
     setExitingIndex(current);
@@ -125,7 +205,7 @@ export default function DisclaimerCarousel() {
 
   // Reduced motion: clean non-sliding switch
   if (prefersReducedMotion) {
-    const notice = NOTICES[activeIndex];
+    const notice = at(activeIndex);
     const Icon = notice.icon;
     return (
       <div
@@ -149,6 +229,10 @@ export default function DisclaimerCarousel() {
   }
 
   const isAnimating = exitingIndex !== null && incomingIndex !== null;
+  // Size the stack to the longest notice so no card's text gets clipped.
+  const longest = notices.reduce((a, b) =>
+    b.title.length + b.message.length > a.title.length + a.message.length ? b : a
+  );
 
   return (
     <div
@@ -202,8 +286,8 @@ export default function DisclaimerCarousel() {
         <div className="flex items-start gap-2.5 sm:gap-3">
           <div className="w-4 h-4 mt-0.5 shrink-0" />
           <div className="min-w-0 flex-1 leading-snug">
-            <strong className="font-bold">{NOTICES[0].title}: </strong>
-            <span>{NOTICES[0].message}</span>
+            <strong className="font-bold">{longest.title}: </strong>
+            <span>{longest.message}</span>
           </div>
         </div>
       </div>
@@ -214,15 +298,11 @@ export default function DisclaimerCarousel() {
       <div className="absolute inset-0 bottom-5">
         {/* Foundation/Back card in stack */}
         {(() => {
-          const backNotice =
-            NOTICES[
-              (isAnimating ? incomingIndex! + 1 : activeIndex + 2) %
-                NOTICES.length
-            ];
+          const backNotice = at(isAnimating ? incomingIndex! + 1 : activeIndex + 2);
           const BackIcon = backNotice.icon;
           return (
             <div
-              key={`back-${backNotice.type}`}
+              key={`back-${backNotice.id}`}
               className={`card absolute inset-0 overflow-hidden shadow-sm ${backNotice.border}`}
               style={{
                 transform: "translateY(16px) scale(0.94)",
@@ -256,15 +336,11 @@ export default function DisclaimerCarousel() {
 
         {/* Middle card in stack */}
         {(() => {
-          const middleNotice =
-            NOTICES[
-              (isAnimating ? incomingIndex! + 1 : activeIndex + 1) %
-                NOTICES.length
-            ];
+          const middleNotice = at(isAnimating ? incomingIndex! + 1 : activeIndex + 1);
           const MiddleIcon = middleNotice.icon;
           return (
             <div
-              key={`middle-${middleNotice.type}`}
+              key={`middle-${middleNotice.id}`}
               className={`card absolute inset-0 overflow-hidden shadow-sm ${middleNotice.border}`}
               style={{
                 transform: "translateY(8px) scale(0.97)",
@@ -299,11 +375,11 @@ export default function DisclaimerCarousel() {
         {/* If transitioning: Render the outgoing card sliding upward */}
         {isAnimating &&
           (() => {
-            const outNotice = NOTICES[exitingIndex!];
+            const outNotice = at(exitingIndex!);
             const OutIcon = outNotice.icon;
             return (
               <div
-                key={`outgoing-${outNotice.type}`}
+                key={`outgoing-${outNotice.id}`}
                 className={`card absolute inset-0 overflow-hidden shadow-md anim-slide-to-top ${outNotice.border}`}
                 style={{
                   transformOrigin: "top center",
@@ -334,13 +410,11 @@ export default function DisclaimerCarousel() {
 
         {/* Front / Incoming card: visibly slides up from the bottom */}
         {(() => {
-          const frontNotice = isAnimating
-            ? NOTICES[incomingIndex!]
-            : NOTICES[activeIndex];
+          const frontNotice = at(isAnimating ? incomingIndex! : activeIndex);
           const FrontIcon = frontNotice.icon;
           return (
             <div
-              key={`front-${frontNotice.type}-${
+              key={`front-${frontNotice.id}-${
                 isAnimating ? "incoming" : "idle"
               }`}
               role="note"

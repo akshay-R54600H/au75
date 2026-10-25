@@ -6,6 +6,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { isSupabaseConfigured } from "./maintenanceDb.ts";
 
 export interface PushSubscriptionKeys {
@@ -253,9 +254,15 @@ export async function syncScheduledAlerts(
 
   // Validate privacy & limit size
   const maxAlerts = 150;
-  const filtered = incomingAlerts.slice(0, maxAlerts).filter((alert) => {
-    return alert.id && alert.triggerAt && alert.title && alert.body && validateAlertPrivacy(alert);
-  });
+  // Client alert ids identify the class (date/time/subject/room), so every
+  // classmate sends the same id. Scope stored ids to this device so one
+  // student's sync can't overwrite or delete another's reminders; the
+  // original id stays as the notification tag.
+  const scope = createHash("sha256").update(endpoint).digest("hex").slice(0, 16);
+  const filtered = incomingAlerts
+    .slice(0, maxAlerts)
+    .filter((alert) => alert.id && alert.triggerAt && alert.title && alert.body && validateAlertPrivacy(alert))
+    .map((alert) => ({ ...alert, id: `${scope}:${alert.id}`, tag: alert.tag || alert.id }));
 
   // Remove existing pending alerts for this endpoint
   for (const [id, a] of mem.alerts.entries()) {
@@ -276,8 +283,9 @@ export async function syncScheduledAlerts(
 
   saveStoreToDisk(mem);
 
-  // Sync to Supabase if configured
-  if (isSupabaseConfigured() && filtered.length > 0) {
+  // Sync to Supabase if configured. Always clear this device's pending alerts
+  // (an empty list means notifications were turned off); insert only if any.
+  if (isSupabaseConfigured()) {
     try {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/+$/, "");
       const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -294,6 +302,8 @@ export async function syncScheduledAlerts(
             cache: "no-store",
           }
         );
+
+        if (filtered.length === 0) return { synced: 0 };
 
         // Upsert new alerts
         const rows = filtered.map((a) => ({

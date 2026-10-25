@@ -167,7 +167,12 @@ export default function SyncButton({ compact = false }: { compact?: boolean }) {
       sessions,
       academicDays: state.academicDays,
       predictions: state.predictions,
-      settings: { ...state.settings, lastSyncedAt: new Date().toISOString() },
+      settings: {
+        ...state.settings,
+        lastSyncedAt: new Date().toISOString(),
+        // Verified by the portal login + OTP; unlocks student-specific themes.
+        syncedStudentId: id.trim().toLowerCase(),
+      },
     });
     setStep("success");
     setMessage(

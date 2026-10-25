@@ -85,6 +85,34 @@ export async function subscribeToPushNotifications(): Promise<PushSubscription |
   }
 }
 
+const SYNC_MEMO_KEY = "au75.pushScheduleSync";
+/** Re-send an unchanged schedule at most this often, as a safety net. */
+const SYNC_MEMO_TTL_MS = 12 * 60 * 60 * 1000;
+
+/** Small non-cryptographic string hash (djb2), used only to detect changes. */
+function hashString(text: string): string {
+  let h = 5381;
+  for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+
+function wasRecentlySynced(fingerprint: string): boolean {
+  try {
+    const memo = JSON.parse(localStorage.getItem(SYNC_MEMO_KEY) || "null") as { hash?: string; at?: number } | null;
+    return memo?.hash === fingerprint && typeof memo.at === "number" && Date.now() - memo.at < SYNC_MEMO_TTL_MS;
+  } catch {
+    return false;
+  }
+}
+
+function rememberSync(fingerprint: string): void {
+  try {
+    localStorage.setItem(SYNC_MEMO_KEY, JSON.stringify({ hash: fingerprint, at: Date.now() }));
+  } catch {
+    /* private mode etc. */
+  }
+}
+
 /**
  * Synchronize upcoming timetable notifications with the background push worker.
  * Allows notifications to trigger automatically even when the app is completely closed.
@@ -107,6 +135,9 @@ export async function syncDevicePushSchedule(params: {
 
   try {
     let sub = await getExistingPushSubscription();
+    // Clearing a schedule never needs a new subscription: no subscription
+    // means nothing is scheduled on the server.
+    if (!sub && sessions.length === 0) return true;
     if (!sub) {
       sub = await subscribeToPushNotifications();
     }
@@ -135,15 +166,23 @@ export async function syncDevicePushSchedule(params: {
       subjectName: item.subjectName,
     }));
 
+    const body = JSON.stringify({
+      subscription: sub.toJSON(),
+      alerts,
+    });
+
+    // Every upload is a serverless call plus database writes; skip it when
+    // this exact schedule was already sent recently (e.g. on each app open).
+    const fingerprint = hashString(body);
+    if (wasRecentlySynced(fingerprint)) return true;
+
     const response = await fetch("/api/notifications/sync-schedule", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        subscription: sub.toJSON(),
-        alerts,
-      }),
+      body,
     });
 
+    if (response.ok) rememberSync(fingerprint);
     return response.ok;
   } catch (err) {
     console.warn("[pushClient] Error synchronizing push schedule:", err);
