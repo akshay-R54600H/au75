@@ -466,9 +466,15 @@ body {
   text-size-adjust: 100%;
 }
 
-/* A stray wide element must never make the whole page pan sideways. */
+/* A stray wide element must never make the whole page pan sideways
+   (it also shoves the fixed bottom nav off-screen on phones). */
 body {
   overflow-x: clip;
+}
+
+/* Keep focused fields clear of the fixed bottom nav. */
+html {
+  scroll-padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
 }
 
 /* Instant taps: no double-tap-zoom delay, no long-press callout on controls. */

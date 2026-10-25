@@ -9,7 +9,7 @@ export default function BottomNav() {
   return (
     <nav
       aria-label="Main navigation"
-      className="fixed bottom-0 left-0 right-0 z-40 flex border-t border-line bg-surface/95 backdrop-blur md:hidden"
+      className="fixed bottom-0 left-0 right-0 z-40 flex border-t border-line bg-surface/90 backdrop-blur-md md:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
     >
       {NAV_LINKS.map(({ href, label, icon: Icon }) => {
@@ -19,12 +19,23 @@ export default function BottomNav() {
             key={href}
             href={href}
             aria-current={active ? "page" : undefined}
-            className={`flex flex-1 flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-semibold transition-colors ${
+            onClick={(e) => {
+              // Tapping the tab you're on scrolls back to the top, like native apps.
+              if (active && !window.location.search) {
+                e.preventDefault();
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }
+            }}
+            className={`group flex min-h-[3.5rem] flex-1 flex-col items-center justify-center gap-1 py-2 text-[11px] font-semibold transition-colors ${
               active ? "text-accent-deep" : "text-faint"
             }`}
           >
-            <span className={`rounded-full px-4 py-1 ${active ? "bg-accent-soft" : ""}`}>
-              <Icon size={20} strokeWidth={2.2} />
+            <span
+              className={`rounded-full px-4 py-1 transition-[background-color,transform] duration-200 group-active:scale-90 ${
+                active ? "bg-accent-soft" : "bg-transparent"
+              }`}
+            >
+              <Icon size={20} strokeWidth={active ? 2.4 : 2} />
             </span>
             {label}
           </Link>

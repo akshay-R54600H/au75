@@ -61,7 +61,7 @@ export default function AppShell({ children, title, action }: Props) {
 
         <main
           id="main-content"
-          className="flex-1 px-4 pb-[max(2rem,calc(1rem_+_env(safe-area-inset-bottom,0px)))] pt-2 md:px-10 md:pb-12 md:pt-8"
+          className="flex-1 px-4 pb-[max(7rem,calc(6rem_+_env(safe-area-inset-bottom,0px)))] pt-2 md:px-10 md:pb-12 md:pt-8"
         >
           <div className="mx-auto w-full max-w-3xl animate-page-in">
             {(title || action) && (
