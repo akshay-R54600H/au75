@@ -36,7 +36,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+  :root:not([data-theme="light"]):not([data-theme="sakura"]):not([data-theme="batman"]):not([data-theme="lighthouse"]) {
     --paper: 22 22 33;
     --surface: 29 29 44;
     --line: 44 44 69;
@@ -89,6 +89,363 @@
   color-scheme: dark;
 }
 
+/* Sakura — blush paper, plum ink, cherry-blossom pink, matcha green.
+   Scenery (sky, branch, falling petals) lives in SakuraBlossoms.tsx. */
+:root[data-theme="sakura"] {
+  --paper: 255 245 247;
+  --surface: 255 252 253;
+  --line: 247 222 231;
+  --line-strong: 234 189 205;
+  --rule: 249 216 227;
+  --ink: 74 38 56;
+  --muted: 125 86 104;
+  --faint: 172 134 151;
+  --pen: 214 79 126;
+  --pen-deep: 158 42 88;
+  --pen-soft: 253 228 237;
+  --marker: 236 108 148;
+  --marker-deep: 188 56 102;
+  --marker-soft: 255 228 238;
+  --sticky: 255 233 214;
+  --highlight: 255 212 227;
+  --success: 92 146 86;
+  --success-soft: 233 243 227;
+  --warning: 201 129 44;
+  --warning-soft: 253 240 222;
+  --danger: 204 52 72;
+  --danger-soft: 253 228 231;
+  color-scheme: light;
+}
+
+:root[data-theme="sakura"] {
+  background: #fff5f7;
+}
+
+/* Let the fixed sky layer behind the page show through. */
+:root[data-theme="sakura"] body {
+  background: transparent;
+}
+
+:root[data-theme="sakura"] .card {
+  background: rgb(var(--surface) / 0.8);
+  border-color: rgb(var(--line) / 0.9);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.9), 0 14px 34px -22px rgb(176 52 98 / 0.45);
+  -webkit-backdrop-filter: blur(12px) saturate(1.15);
+  backdrop-filter: blur(12px) saturate(1.15);
+}
+
+:root[data-theme="sakura"] nav[aria-label="Main navigation"] {
+  background: rgb(var(--surface) / 0.62);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+:root[data-theme="sakura"] ::selection {
+  background: rgb(var(--highlight));
+  color: rgb(var(--pen-deep));
+}
+
+.sakura-sky {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(1100px 620px at 92% -12%, rgb(255 208 223 / 0.85), transparent 62%),
+    radial-gradient(820px 520px at -12% 28%, rgb(255 226 235 / 0.9), transparent 60%),
+    radial-gradient(900px 640px at 50% 118%, rgb(252 202 218 / 0.6), transparent 62%),
+    linear-gradient(180deg, #fff9fa 0%, #fff0f4 55%, #fde7ef 100%);
+  animation: sakura-fade-in 1.2s ease both;
+}
+
+/* Pale sun, like a woodblock print. */
+.sakura-sun {
+  position: absolute;
+  left: 7%;
+  top: 9%;
+  width: clamp(140px, 22vw, 260px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(255 188 206 / 0.55) 0%, rgb(255 205 219 / 0.35) 45%, transparent 70%);
+  filter: blur(2px);
+}
+
+.sakura-hills {
+  position: absolute;
+  inset: auto 0 0 0;
+  width: 100%;
+  height: clamp(120px, 26vh, 260px);
+}
+
+.sakura-branch {
+  position: absolute;
+  top: -6px;
+  right: -10px;
+  width: clamp(220px, 44vw, 460px);
+  transform-origin: 100% 0%;
+  animation: sakura-sway 9s ease-in-out infinite;
+  filter: drop-shadow(0 6px 10px rgb(150 40 80 / 0.12));
+}
+
+.sakura-petals {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* A few large, soft petals drifting over the page for depth. */
+.sakura-petals-front {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+/* Backdrop blur on every card is costly to repaint while scrolling on
+   phones — use a more opaque card there instead. */
+@media (pointer: coarse) {
+  :root[data-theme="sakura"] .card {
+    background: rgb(var(--surface) / 0.9);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@keyframes sakura-sway {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-1.6deg); }
+}
+
+@keyframes sakura-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Batman — near-black night, bone-white ink, bat-signal yellow.
+   Scenery (bat-signal, Gotham skyline) lives in BatmanBackdrop.tsx. */
+:root[data-theme="batman"] {
+  --paper: 13 13 15;
+  --surface: 24 24 27;
+  --line: 42 42 46;
+  --line-strong: 70 68 60;
+  --rule: 36 36 40;
+  --ink: 242 238 224;
+  --muted: 168 162 146;
+  --faint: 112 108 98;
+  --pen: 250 204 21;
+  --pen-deep: 255 224 102;
+  --pen-soft: 54 45 10;
+  --marker: 250 204 21;
+  --marker-deep: 255 221 64;
+  --marker-soft: 54 45 10;
+  --sticky: 92 74 8;
+  --highlight: 92 74 8;
+  --success: 74 196 128;
+  --success-soft: 20 52 36;
+  --warning: 245 158 11;
+  --warning-soft: 60 40 8;
+  --danger: 248 86 70;
+  --danger-soft: 64 22 20;
+  color-scheme: dark;
+  background: #0d0d0f;
+}
+
+:root[data-theme="batman"] body {
+  background: transparent;
+}
+
+/* Yellow buttons need dark text, not the white used on pink. */
+:root[data-theme="batman"] .bg-marker.text-white {
+  color: rgb(var(--paper));
+}
+
+:root[data-theme="batman"] .card {
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.03), 0 12px 30px -18px rgb(0 0 0 / 0.8);
+}
+
+:root[data-theme="batman"] ::selection {
+  background: rgb(var(--pen));
+  color: rgb(var(--paper));
+}
+
+.batman-sky {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(700px 420px at 88% 6%, rgb(250 204 21 / 0.07), transparent 65%),
+    linear-gradient(180deg, #0b0b0d 0%, #111115 60%, #16161a 100%);
+  animation: sakura-fade-in 1s ease both;
+}
+
+/* Bat-signal and its beam span the full height so the beam rises from the
+   rooftops — faint so it never fights the content. */
+.batman-signal {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  max-width: 60vw;
+  filter: blur(1px);
+}
+
+/* Crescent moon: an inset shadow on an empty circle. */
+.batman-moon {
+  position: absolute;
+  top: 7%;
+  left: 8%;
+  width: clamp(34px, 5vw, 54px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  box-shadow: inset 9px -5px 0 0 rgb(236 230 205 / 0.5);
+  filter: drop-shadow(0 0 10px rgb(236 230 205 / 0.18));
+  transform: rotate(-12deg);
+}
+
+/* A few bats drifting across the sky, flapping slowly. */
+.batman-bat {
+  position: absolute;
+  left: 0;
+  animation: batman-fly linear infinite both;
+}
+
+.batman-bat svg {
+  animation: batman-flap 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes batman-fly {
+  0% { transform: translate(-60px, 0); }
+  50% { transform: translate(50vw, -18px); }
+  100% { transform: translate(calc(100vw + 60px), 6px); }
+}
+
+@keyframes batman-flap {
+  from { transform: scaleY(1); }
+  to { transform: scaleY(0.55); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .batman-bat {
+    display: none;
+  }
+}
+
+.batman-skyline {
+  position: absolute;
+  inset: auto 0 0 0;
+  width: 100%;
+  height: clamp(90px, 18vh, 180px);
+}
+
+/* Lighthouse — Kaup Beach at sunset: warm cream paper, deep plum-brown
+   ink, lantern-red links and sunset-orange buttons. Scenery lives in
+   LighthouseScene.tsx. */
+:root[data-theme="lighthouse"] {
+  --paper: 255 243 234;
+  --surface: 255 250 246;
+  --line: 246 221 206;
+  --line-strong: 232 190 170;
+  --rule: 247 214 200;
+  --ink: 52 28 34;
+  --muted: 112 76 80;
+  --faint: 160 124 122;
+  --pen: 176 44 40;
+  --pen-deep: 128 28 26;
+  --pen-soft: 253 226 220;
+  --marker: 204 70 26;
+  --marker-deep: 164 50 16;
+  --marker-soft: 255 230 212;
+  --sticky: 255 226 180;
+  --highlight: 255 212 170;
+  --success: 46 132 92;
+  --success-soft: 226 243 232;
+  --warning: 190 116 20;
+  --warning-soft: 253 238 214;
+  --danger: 196 40 48;
+  --danger-soft: 253 226 226;
+  color-scheme: light;
+  background: #d2441d;
+}
+
+:root[data-theme="lighthouse"] body {
+  background: transparent;
+}
+
+:root[data-theme="lighthouse"] .card {
+  background: rgb(var(--surface) / 0.84);
+  border-color: rgb(var(--line) / 0.9);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.8), 0 14px 34px -22px rgb(90 20 20 / 0.55);
+  -webkit-backdrop-filter: blur(12px) saturate(1.1);
+  backdrop-filter: blur(12px) saturate(1.1);
+}
+
+:root[data-theme="lighthouse"] ::selection {
+  background: rgb(var(--highlight));
+  color: rgb(var(--pen-deep));
+}
+
+@media (pointer: coarse) {
+  :root[data-theme="lighthouse"] .card {
+    background: rgb(var(--surface) / 0.93);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+.lighthouse-sky {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background: linear-gradient(180deg, #8e1f17 0%, #d2441d 15%, #f2862a 30%, #e2462a 49%, #c8493a 55%, #3a3646 80%, #141012 100%);
+  animation: sakura-fade-in 1s ease both;
+}
+
+.lighthouse-scene {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Portrait phones: keep the scene's full height and slide it so the tower
+   (right of centre, as in the real view) sits in frame. */
+@media (max-aspect-ratio: 1/1) {
+  .lighthouse-scene {
+    left: 50%;
+    right: auto;
+    width: auto;
+    aspect-ratio: 1440 / 900;
+    transform: translateX(-70%);
+  }
+}
+
+/* The lantern glows gently, like a slow-turning lamp seen side-on. */
+.lighthouse-glow {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: lighthouse-pulse 4s ease-in-out infinite;
+}
+
+@keyframes lighthouse-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lighthouse-glow {
+    animation: none;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -105,6 +462,45 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* A stray wide element must never make the whole page pan sideways. */
+body {
+  overflow-x: clip;
+}
+
+/* Instant taps: no double-tap-zoom delay, no long-press callout on controls. */
+a,
+button,
+[role="button"],
+[role="radio"],
+[role="switch"],
+label,
+summary {
+  touch-action: manipulation;
+}
+button,
+[role="button"],
+nav a {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Pressed feedback for tappable controls. */
+.pressable {
+  transition: transform 0.12s ease, background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.pressable:active {
+  transform: scale(0.96);
+}
+
+/* Skeleton placeholder */
+.skeleton {
+  background: rgb(var(--line));
+  border-radius: 12px;
 }
 
 a {

@@ -194,3 +194,40 @@ RETURNS void LANGUAGE sql AS $$
   WHERE delivered = TRUE AND created_at < NOW() - INTERVAL '2 days';
 $$;
 
+-- ==============================================================================
+-- AU75 Admin Announcements (dashboard notice carousel)
+-- ==============================================================================
+
+-- 14. Announcements managed from the admin panel
+CREATE TABLE IF NOT EXISTS public.app_announcements (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'announcement'
+    CHECK (type IN ('announcement', 'notice', 'news', 'disclaimer')),
+  icon TEXT,
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  expires_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_by TEXT
+);
+
+-- Optional symbol shown with the announcement (added later; safe to re-run).
+ALTER TABLE public.app_announcements ADD COLUMN IF NOT EXISTS icon TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_announcements_created
+  ON public.app_announcements (created_at DESC);
+
+ALTER TABLE public.app_announcements ENABLE ROW LEVEL SECURITY;
+
+-- Only service_role (server-side AU75 API routes) may read or write.
+-- Students receive active announcements through /api/announcements.
+DROP POLICY IF EXISTS "Allow service_role full access to app_announcements" ON public.app_announcements;
+CREATE POLICY "Allow service_role full access to app_announcements"
+  ON public.app_announcements
+  FOR ALL
+  TO service_role
+  USING (true)
+  WITH CHECK (true);
+

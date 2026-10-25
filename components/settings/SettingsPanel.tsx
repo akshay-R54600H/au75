@@ -5,10 +5,13 @@ import Link from "next/link";
 import { Plus, Trash2, Download, Upload, LogOut, ExternalLink } from "lucide-react";
 import { useApp } from "@/lib/context/AppContext";
 import { forgetSavedLogin, loadQuickLogin } from "@/lib/platform/credentials";
-import { THEMES } from "@/lib/themes";
+import { THEMES, availableThemes, isRestrictedTheme } from "@/lib/themes";
 import { APP_VERSION } from "@/lib/tnc";
-import type { AppSettings, ExamMilestone } from "@/lib/models/types";
+import type { AppSettings, ExamMilestone, ThemeId } from "@/lib/models/types";
 import Button from "@/components/ui/Button";
+import { SakuraFlowerIcon } from "@/components/theme/SakuraBlossoms";
+import { BatIcon } from "@/components/theme/BatmanBackdrop";
+import { LighthouseIcon } from "@/components/theme/LighthouseScene";
 import InstallButton from "@/components/pwa/InstallButton";
 
 const INPUT = "w-full min-h-11 rounded-xl border-2 border-paper-edge bg-surface px-3.5 py-2.5 text-base text-ink focus:border-pen focus:outline-none transition";
@@ -35,28 +38,6 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
   );
 }
 
-function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-        checked ? "border-accent bg-accent" : "border-line-strong bg-line"
-      }`}
-    >
-      <span
-        aria-hidden="true"
-        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition duration-200 ease-in-out ${
-          checked ? "translate-x-5" : "translate-x-0"
-        }`}
-      />
-    </button>
-  );
-}
-
 function Segmented<T extends string>({ value, options, onChange }: { value: T; options: { id: T; name: string }[]; onChange: (v: T) => void }) {
   return (
     <div className="flex rounded-full border-2 border-line-strong p-0.5">
@@ -65,11 +46,83 @@ function Segmented<T extends string>({ value, options, onChange }: { value: T; o
           key={o.id}
           type="button"
           onClick={() => onChange(o.id)}
-          className={`rounded-full px-3 py-1 text-xs font-bold transition-colors ${value === o.id ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}
+          className={`pressable min-h-9 rounded-full px-3.5 text-xs font-bold ${value === o.id ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}
         >
           {o.name}
         </button>
       ))}
+    </div>
+  );
+}
+
+/** Fixed preview colours — each swatch shows its own theme, whatever is active. */
+const THEME_PREVIEW: Record<ThemeId, { bg: string; card: string; dot: string }> = {
+  system: { bg: "linear-gradient(135deg, #fdfcf7 50%, #161621 50%)", card: "#ffffff", dot: "#2f3aa3" },
+  light: { bg: "#fdfcf7", card: "#ffffff", dot: "#2f3aa3" },
+  dark: { bg: "#161621", card: "#1d1d2c", dot: "#8792ff" },
+  sakura: { bg: "linear-gradient(160deg, #fff9fa, #fde0ea)", card: "rgba(255,255,255,0.85)", dot: "#d64f7e" },
+  batman: { bg: "linear-gradient(160deg, #1c1c21, #0d0d0f)", card: "#18181b", dot: "#facc15" },
+  lighthouse: { bg: "linear-gradient(180deg, #9a2318, #f2852a 45%, #e2462a 55%, #3a2a33)", card: "rgba(255,248,240,0.9)", dot: "#c43a1e" },
+};
+
+function ThemePicker({ value, onChange, studentId }: { value: ThemeId; onChange: (v: ThemeId) => void; studentId?: string }) {
+  // Student-only themes appear once the synced student ID is checked.
+  const [allowed, setAllowed] = useState<ThemeId[]>(() => THEMES.filter((t) => !isRestrictedTheme(t.id)).map((t) => t.id));
+  useEffect(() => {
+    let cancelled = false;
+    availableThemes(studentId).then((ids) => !cancelled && setAllowed(ids));
+    return () => {
+      cancelled = true;
+    };
+  }, [studentId]);
+  const themes = THEMES.filter((t) => allowed.includes(t.id));
+
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Theme"
+      className={`mt-2 grid grid-cols-2 gap-2 ${themes.length > 5 ? "sm:grid-cols-6" : "sm:grid-cols-5"}`}
+    >
+      {themes.map((t) => {
+        const p = THEME_PREVIEW[t.id];
+        const active = value === t.id;
+        return (
+          <button
+            key={t.id}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(t.id)}
+            className={`pressable group rounded-2xl border-2 p-1.5 text-left ${
+              active ? "border-pen shadow-[0_6px_18px_-10px_rgb(var(--pen)/0.7)]" : "border-line hover:border-line-strong"
+            }`}
+          >
+            <span className="relative block h-14 overflow-hidden rounded-xl ring-1 ring-inset ring-black/5" style={{ background: p.bg }}>
+              <span
+                className="absolute bottom-2 left-2 h-6 w-10 rounded-md shadow-sm"
+                style={{ background: p.card, border: "1px solid rgba(0,0,0,0.06)" }}
+              />
+              <span className="absolute bottom-3.5 left-3.5 h-2 w-2 rounded-full" style={{ background: p.dot }} />
+              {t.id === "sakura" && (
+                <>
+                  <SakuraFlowerIcon size={22} className="absolute right-1.5 top-1 transition-transform duration-500 group-hover:rotate-45" />
+                  <SakuraFlowerIcon size={13} className="absolute right-8 top-6 opacity-80" />
+                  <SakuraFlowerIcon size={10} className="absolute bottom-1.5 right-3 opacity-70" />
+                </>
+              )}
+              {t.id === "batman" && (
+                <BatIcon size={30} color="#facc15" className="absolute right-2 top-2 transition-transform duration-300 group-hover:scale-110" />
+              )}
+              {t.id === "lighthouse" && (
+                <LighthouseIcon size={44} className="absolute bottom-0 right-3 transition-transform duration-300 group-hover:-translate-y-0.5" />
+              )}
+            </span>
+            <span className={`mt-1.5 block px-1 text-xs font-bold ${active ? "text-pen" : "text-muted"}`}>
+              {t.name}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -134,7 +187,7 @@ export default function SettingsPanel() {
       <Section title="Target">
         <Row label="Attendance target" hint="Most AU courses need 75%">
           <div className="flex items-center gap-1">
-            <input type="number" min={1} max={100} value={target} onChange={(e) => onTarget(e.target.value)} className={`${INPUT} w-20 text-right`} />
+            <input type="number" inputMode="decimal" enterKeyHint="done" min={1} max={100} value={target} onChange={(e) => onTarget(e.target.value)} className={`${INPUT} w-20 text-right`} />
             <span className="text-sm text-muted">%</span>
           </div>
         </Row>
@@ -191,12 +244,10 @@ export default function SettingsPanel() {
       </Section>
 
       <Section title="Display">
-        <Row label="Theme">
-          <Segmented value={settings.theme} options={THEMES} onChange={(theme) => updateSettings({ theme })} />
-        </Row>
-        <Row label="Show decimals" hint="74.6% instead of 75%">
-          <Toggle checked={settings.showDecimals} onChange={(showDecimals) => updateSettings({ showDecimals })} label="Show decimals" />
-        </Row>
+        <div className="py-2.5">
+          <div className="text-sm font-semibold text-ink">Theme</div>
+          <ThemePicker value={settings.theme} onChange={(theme) => updateSettings({ theme })} studentId={settings.syncedStudentId} />
+        </div>
         <Row label="Phone app" hint="Add AU75 to your home screen">
           <InstallButton size="sm" />
         </Row>

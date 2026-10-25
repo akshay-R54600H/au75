@@ -1,4 +1,5 @@
 import type { PredictionState } from "@/lib/models/types";
+import { haptic } from "@/lib/haptics";
 
 interface Props {
   value: PredictionState;
@@ -13,7 +14,8 @@ const OPTIONS: { value: PredictionState; label: string; active: string }[] = [
 ];
 
 export default function PredictionToggle({ value, onChange, size = "md" }: Props) {
-  const pad = size === "sm" ? "px-2.5 py-1 text-xs" : "px-3.5 py-1.5 text-sm";
+  // `sm` stays compact on desktop but keeps a ~36px touch target on phones.
+  const pad = size === "sm" ? "min-h-9 px-3.5 text-xs md:min-h-0 md:px-2.5 md:py-1" : "min-h-10 px-4 text-sm";
   return (
     <div role="radiogroup" className="inline-flex gap-1.5">
       {OPTIONS.map((o) => (
@@ -22,8 +24,12 @@ export default function PredictionToggle({ value, onChange, size = "md" }: Props
           type="button"
           role="radio"
           aria-checked={value === o.value}
-          onClick={() => onChange(o.value)}
-          className={`rounded-full border-2 font-semibold transition-colors ${pad} ${
+          onClick={() => {
+            if (o.value === value) return;
+            haptic();
+            onChange(o.value);
+          }}
+          className={`pressable rounded-full border-2 font-semibold ${pad} ${
             value === o.value ? o.active : "border-line-strong text-muted hover:border-ink/50"
           }`}
         >

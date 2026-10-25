@@ -7,7 +7,9 @@ import ServiceWorker from "@/components/pwa/ServiceWorker";
 import MaintenanceGuard from "@/components/maintenance/MaintenanceGuard";
 import AnalyticsTracker from "@/components/analytics/AnalyticsTracker";
 import NotificationManager from "@/components/notifications/NotificationManager";
-import { Analytics } from "@vercel/analytics/next";
+import SakuraBlossoms from "@/components/theme/SakuraBlossoms";
+import BatmanBackdrop from "@/components/theme/BatmanBackdrop";
+import LighthouseScene from "@/components/theme/LighthouseScene";
 import { THEME_STORAGE_KEY } from "@/lib/themes";
 
 const nunito = Nunito({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
@@ -29,6 +31,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  // On-screen keyboard shrinks the layout instead of covering inputs/sheets.
+  interactiveWidget: "resizes-content",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#fdfcf7" },
     { media: "(prefers-color-scheme: dark)", color: "#161621" },
@@ -47,13 +51,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <AppProvider>
+          <SakuraBlossoms />
+          <BatmanBackdrop />
+          <LighthouseScene />
           <TncConsent />
           <MaintenanceGuard>{children}</MaintenanceGuard>
           <NotificationManager />
         </AppProvider>
         <AnalyticsTracker />
         <ServiceWorker />
-        <Analytics />
       </body>
     </html>
   );

@@ -14,13 +14,52 @@ export interface MaintenanceStatus {
 
 const DEFAULT_TITLE = "AU75 is under maintenance";
 const DEFAULT_MESSAGE = "We're making a few improvements. Please check back soon.";
-const POLL_INTERVAL_MS = 10_000; // 10 seconds
+// Every open tab polls, and each poll is a serverless invocation — keep this
+// modest to stay well inside free hosting quotas. Tabs also re-check
+// immediately when they regain focus or come back online.
+const POLL_INTERVAL_MS = 60_000; // 60 seconds
+const STORAGE_KEY = "au75.maintenance";
+
+interface StoredStatus {
+  maintenanceMode: boolean;
+  title: string;
+  message: string;
+  updatedAt: string | null;
+}
+
+function readStored(): StoredStatus | null {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as StoredStatus) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStored(status: StoredStatus): void {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(status));
+  } catch {
+    // Storage unavailable (private mode etc.) — the server remains the source of truth.
+  }
+}
 
 export function useMaintenanceStatus(enabled = true): MaintenanceStatus {
+  // Start from the last state the server reported so a reload never flashes the
+  // app (or stays unlocked if the first poll fails) while maintenance is on.
   const [maintenanceMode, setMaintenanceMode] = useState<boolean>(false);
   const [title, setTitle] = useState<string>(DEFAULT_TITLE);
   const [message, setMessage] = useState<string>(DEFAULT_MESSAGE);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+
+  useEffect(() => {
+    const stored = readStored();
+    if (!stored) return;
+    setMaintenanceMode(Boolean(stored.maintenanceMode));
+    if (stored.title) setTitle(stored.title);
+    if (stored.message) setMessage(stored.message);
+    if (stored.updatedAt) setUpdatedAt(stored.updatedAt);
+  }, []);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isChecking, setIsChecking] = useState<boolean>(false);
 
@@ -56,12 +95,18 @@ export function useMaintenanceStatus(enabled = true): MaintenanceStatus {
       const data = await res.json();
       if (!isMountedRef.current) return;
 
-      if (typeof data.maintenanceMode === "boolean") {
-        setMaintenanceMode(data.maintenanceMode);
-      }
+      if (typeof data.maintenanceMode !== "boolean") return;
+
+      setMaintenanceMode(data.maintenanceMode);
       if (data.title) setTitle(data.title);
       if (data.message) setMessage(data.message);
       if (data.updatedAt) setUpdatedAt(data.updatedAt);
+      writeStored({
+        maintenanceMode: data.maintenanceMode,
+        title: data.title || DEFAULT_TITLE,
+        message: data.message || DEFAULT_MESSAGE,
+        updatedAt: data.updatedAt || null,
+      });
     } catch (err) {
       // Network or fetch error: Retain current state without blocking user
       console.warn("[maintenance] Polling error (retaining current state):", err);

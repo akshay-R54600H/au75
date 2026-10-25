@@ -6,10 +6,12 @@
 import type {
   Subject,
   ClassSession,
+  AcademicDay,
   PredictionState,
   AttendanceRequirement,
   SubjectStatus,
 } from "@/lib/models/types";
+import { isSessionFuture, sessionEnd } from "./dates.ts";
 
 // ------------------------------------------------------------------
 // Basic percentage
@@ -19,6 +21,61 @@ import type {
 export function calcPercentage(attended: number, total: number): number {
   if (total === 0) return 0;
   return (attended / total) * 100;
+}
+
+// ------------------------------------------------------------------
+// Target check — exact, no floating-point drift
+// ------------------------------------------------------------------
+
+/**
+ * Does attended/total meet the target?
+ *
+ * Compares attended*100 against target*total instead of the computed
+ * percentage: (57/100)*100 is 56.999… in floating point, which flagged
+ * an exactly-57% subject as below a 57% target (and 11/20 as
+ * "strictly above" 55%).
+ */
+export function meetsTarget(
+  attended: number,
+  total: number,
+  target: number,
+  requirement: AttendanceRequirement
+): boolean {
+  const lhs = attended * 100;
+  const rhs = target * total;
+  const eps = 1e-9 * Math.max(1, Math.abs(rhs));
+  return requirement === "atLeast" ? lhs >= rhs - eps : lhs > rhs + eps;
+}
+
+// ------------------------------------------------------------------
+// Sessions that still count toward the projection
+// ------------------------------------------------------------------
+
+/**
+ * Sessions the portal's attended/total don't include yet, so the plan
+ * (predictions) decides how they count:
+ *  - every session that hasn't ended, plus
+ *  - sessions that ended *after* the last sync — they've happened, but
+ *    won't be in the portal numbers until the next sync. Dropping them
+ *    silently turned a planned skip on an earlier class today into an
+ *    "ignored" class.
+ * Holiday and break days are excluded.
+ */
+export function upcomingSessions(
+  sessions: ClassSession[],
+  academicDays: AcademicDay[] = [],
+  now: Date = new Date(),
+  lastSyncedAt?: string
+): ClassSession[] {
+  const off = new Set(
+    academicDays.filter((d) => d.type === "holiday" || d.type === "break").map((d) => d.date)
+  );
+  const syncedMs = lastSyncedAt ? Date.parse(lastSyncedAt) : NaN;
+  return sessions.filter(
+    (s) =>
+      !off.has(s.date) &&
+      (isSessionFuture(s, now) || (Number.isFinite(syncedMs) && sessionEnd(s).getTime() > syncedMs))
+  );
 }
 
 // ------------------------------------------------------------------
@@ -108,21 +165,11 @@ export function maxAbsences(
   target: number,
   requirement: AttendanceRequirement
 ): number {
-  const t = target / 100;
-
   let skips = 0;
   // Safety cap: no point checking more than 500 future classes
-  while (skips <= 500) {
-    const newTotal = total + skips + 1;
-    const newPct = attended / newTotal;
-
-    const passes =
-      requirement === "atLeast" ? newPct >= t : newPct > t;
-
-    if (!passes) break;
+  while (skips <= 500 && meetsTarget(attended, total + skips + 1, target, requirement)) {
     skips++;
   }
-
   return skips;
 }
 
@@ -149,43 +196,22 @@ export function classesRequiredToReachTarget(
   target: number,
   requirement: AttendanceRequirement
 ): number {
+  if (meetsTarget(attended, total, target, requirement)) return 0;
+
   const t = target / 100;
-  const current = calcPercentage(attended, total);
+  if (t >= 1) return Infinity;
 
-  const alreadyMeets =
-    requirement === "atLeast" ? current >= target : current > target;
-
-  if (alreadyMeets) return 0;
-
-  if (t >= 1) {
-    return Infinity;
+  // Closed-form estimate, then settle on the exact minimum with the
+  // drift-free check (the float estimate can be off by one either way).
+  let classes = Math.max(1, Math.ceil((t * total - attended) / (1 - t)));
+  while (classes > 1 && meetsTarget(attended + classes - 1, total + classes - 1, target, requirement)) {
+    classes--;
   }
-
-  const numerator = t * total - attended;
-  const denominator = 1 - t;
-
-  if (denominator <= 0) return Infinity;
-
-  const raw = numerator / denominator;
-  // Round to nearest integer first to handle floating-point imprecision
-  // e.g. 10.0000000002 should be treated as 10, not rounded up to 11
-  const rounded = Math.round(raw);
-  let classes = Math.abs(raw - rounded) < 1e-9 ? rounded : Math.ceil(raw);
-
-  // Ensure at least 1 class if we haven't met target yet
-  if (classes < 1) classes = 1;
-
-  // Verify with integer-safe check and increment if floating point is off
-  let verified = classes;
-  while (verified <= total + 1000) {
-    const newPct = (attended + verified) / (total + verified);
-    const passes =
-      requirement === "atLeast" ? newPct >= t : newPct > t;
-    if (passes) break;
-    verified++;
+  const cap = classes + total + 1000;
+  while (!meetsTarget(attended + classes, total + classes, target, requirement)) {
+    if (++classes > cap) return Infinity;
   }
-
-  return verified;
+  return classes;
 }
 
 // ------------------------------------------------------------------
@@ -194,7 +220,7 @@ export function classesRequiredToReachTarget(
 
 /**
  * Returns SAFE / WARNING / DANGER based on current attendance and target.
- * WARNING: within 5 percentage points of target
+ * WARNING: within 5 percentage points of target (or no classes held yet)
  * DANGER: below target
  */
 export function getSubjectStatus(
@@ -203,14 +229,10 @@ export function getSubjectStatus(
   target: number,
   requirement: AttendanceRequirement
 ): SubjectStatus {
-  const pct = calcPercentage(attended, total);
-  const t = target;
-
-  const atTarget =
-    requirement === "atLeast" ? pct >= t : pct > t;
-
-  if (!atTarget) return "danger";
-  if (pct < t + 5) return "warning";
+  // 0 of 0 isn't "below target" — nothing has been missed yet.
+  if (total === 0) return "warning";
+  if (!meetsTarget(attended, total, target, requirement)) return "danger";
+  if (!meetsTarget(attended, total, target + 5, "atLeast")) return "warning";
   return "safe";
 }
 

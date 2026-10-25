@@ -51,8 +51,16 @@ export function minutes(t: string): number {
   return h * 60 + m;
 }
 
+/**
+ * Standard rounding (half up): 74.56% → "74.6", 74.44% → "74.4".
+ * The epsilon keeps float noise like 56.999…9 (= 57/100*100) at 57 and makes
+ * exact halves such as 74.45 (stored as 74.4499…) round up as expected.
+ * Status labels use exact integer math, so they're unaffected by display rounding.
+ */
 export function fmtPct(value: number, decimals: boolean): string {
-  return decimals ? value.toFixed(1) : String(Math.round(value));
+  return decimals
+    ? (Math.round(value * 10 + 1e-6) / 10).toFixed(1)
+    : String(Math.round(value + 1e-6));
 }
 
 /**
@@ -78,4 +86,15 @@ export function isSessionFuture(
     return nowMin < minutes(session.startTime) + 55;
   }
   return true;
+}
+
+/** Local end time of a session (end time, else start + 55 min, else end of that day). */
+export function sessionEnd(session: { date: string; startTime?: string; endTime?: string }): Date {
+  const [y, mo, d] = session.date.split("-").map(Number);
+  const endMin = session.endTime
+    ? minutes(session.endTime)
+    : session.startTime
+      ? minutes(session.startTime) + 55
+      : 24 * 60;
+  return new Date(y, mo - 1, d, 0, endMin);
 }

@@ -19,7 +19,13 @@ async function handleDispatch(req: NextRequest) {
     }
   }
 
-  const wp = getWebPushInstance();
+  let wp: ReturnType<typeof getWebPushInstance>;
+  try {
+    wp = getWebPushInstance();
+  } catch (err) {
+    console.error("[cron] Push not configured:", err);
+    return NextResponse.json({ error: "Push notifications are not configured on the server." }, { status: 503 });
+  }
   const dueItems = await getDueAlerts();
 
   const deliveredIds: string[] = [];

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import {
   getVapidKeys,
   initWebPush,
@@ -98,11 +99,12 @@ test("Push Test 3 — Subscription registration and schedule sync", async () => 
   // Check due alerts
   const due = await getDueAlerts(now);
   assert.equal(due.length, 1, "Only alert-1 should be due right now");
-  assert.equal(due[0].alert.id, "alert-1");
+  assert.ok(due[0].alert.id.endsWith(":alert-1"), "Stored id is scoped to the device");
+  assert.equal(due[0].alert.tag, "alert-1", "Notification tag keeps the class id");
   assert.equal(due[0].subscription.endpoint, testSub.endpoint);
 
   // Mark delivered
-  await markAlertsDelivered(["alert-1"]);
+  await markAlertsDelivered([due[0].alert.id]);
 
   // Due alerts after delivery should now be empty
   const dueAfter = await getDueAlerts(now);
@@ -158,8 +160,35 @@ test("Push Test 5 — Cleanup prunes delivered alerts older than cutoff", async 
     },
   ]);
 
-  await markAlertsDelivered(["old-alert"]);
+  // Too old for getDueAlerts' look-back window, so derive the device-scoped id.
+  const scope = createHash("sha256").update(testSub.endpoint).digest("hex").slice(0, 16);
+  await markAlertsDelivered([`${scope}:old-alert`]);
 
   const cleaned = await cleanupDeliveredAlerts(24 * 60 * 60 * 1000);
   assert.equal(cleaned, 1, "Old delivered alert should be pruned");
+});
+
+test("Push Test 6 — Classmates with the same class each keep their own reminder", async () => {
+  const subA = { endpoint: "https://fcm.googleapis.com/fcm/send/student-a", keys: { p256dh: "a", auth: "a" } };
+  const subB = { endpoint: "https://fcm.googleapis.com/fcm/send/student-b", keys: { p256dh: "b", auth: "b" } };
+  await savePushSubscription(subA);
+  await savePushSubscription(subB);
+
+  const now = Date.now();
+  // Same class → identical client-side id for both students.
+  const sameClass = [{ id: "au75-class-2026-10-27-09:00-CS301-R201", triggerAt: now - 1000, title: "Class", body: "OS in R201" }];
+  await syncScheduledAlerts(subA.endpoint, sameClass);
+  await syncScheduledAlerts(subB.endpoint, sameClass);
+
+  let due = await getDueAlerts(now);
+  assert.deepEqual(
+    due.map((d) => d.subscription.endpoint).sort(),
+    [subA.endpoint, subB.endpoint],
+    "Both students must get the reminder"
+  );
+
+  // Student B turns notifications off (empty schedule) → only A remains.
+  await syncScheduledAlerts(subB.endpoint, []);
+  due = await getDueAlerts(now);
+  assert.deepEqual(due.map((d) => d.subscription.endpoint), [subA.endpoint], "B's reminders are cleared, A's are kept");
 });

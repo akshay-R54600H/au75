@@ -120,6 +120,24 @@ function invalidateCache(): void {
   delete g[CACHE_SLOT];
 }
 
+/**
+ * When Supabase is briefly unreachable, serve the last value it actually returned
+ * (never a fresh `false` default) so a transient error can't switch maintenance off.
+ */
+function lastKnownOrFallback(): MaintenanceDTO {
+  const cached = getCache();
+  if (cached && cached.data.source === "supabase") return cached.data;
+  const mem = getFallbackStore();
+  return {
+    maintenanceMode: mem.maintenance_mode,
+    title: mem.maintenance_title,
+    message: mem.maintenance_message,
+    updatedAt: mem.updated_at,
+    updatedBy: mem.updated_by,
+    source: "fallback_memory",
+  };
+}
+
 /** Check if Supabase credentials are configured in server environment. */
 export function isSupabaseConfigured(): boolean {
   return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
@@ -165,22 +183,15 @@ export async function getMaintenanceConfig(forceFresh = false): Promise<Maintena
     });
 
     if (!res.ok) {
-      console.warn(`[maintenance] Supabase fetch failed with status ${res.status}. Falling back to memory state.`);
-      const mem = getFallbackStore();
-      return {
-        maintenanceMode: mem.maintenance_mode,
-        title: mem.maintenance_title,
-        message: mem.maintenance_message,
-        updatedAt: mem.updated_at,
-        updatedBy: mem.updated_by,
-        source: "fallback_memory",
-      };
+      console.warn(`[maintenance] Supabase fetch failed with status ${res.status}. Serving last known state.`);
+      return lastKnownOrFallback();
     }
 
     const rows = (await res.json()) as MaintenanceRecord[];
 
     if (!rows || rows.length === 0) {
-      // Seed initial row if table is empty
+      // Seed initial row if table is empty. ignore-duplicates so a concurrent admin
+      // write that lands first is never overwritten with `false`.
       const initialRow: MaintenanceRecord = {
         id: "global",
         maintenance_mode: false,
@@ -190,13 +201,13 @@ export async function getMaintenanceConfig(forceFresh = false): Promise<Maintena
         updated_by: "system",
       };
 
-      await fetch(`${cleanUrl}/rest/v1/app_settings`, {
+      await fetch(`${cleanUrl}/rest/v1/app_settings?on_conflict=id`, {
         method: "POST",
         headers: {
           apikey: serviceKey,
           Authorization: `Bearer ${serviceKey}`,
           "Content-Type": "application/json",
-          Prefer: "resolution=merge-duplicates",
+          Prefer: "resolution=ignore-duplicates",
         },
         body: JSON.stringify(initialRow),
         cache: "no-store",
@@ -210,7 +221,6 @@ export async function getMaintenanceConfig(forceFresh = false): Promise<Maintena
         updatedBy: initialRow.updated_by,
         source: "supabase",
       };
-      setCache(result);
       return result;
     }
 
@@ -228,15 +238,7 @@ export async function getMaintenanceConfig(forceFresh = false): Promise<Maintena
     return result;
   } catch (err) {
     console.error("[maintenance] Error contacting Supabase:", err);
-    const mem = getFallbackStore();
-    return {
-      maintenanceMode: mem.maintenance_mode,
-      title: mem.maintenance_title,
-      message: mem.maintenance_message,
-      updatedAt: mem.updated_at,
-      updatedBy: mem.updated_by,
-      source: "fallback_memory",
-    };
+    return lastKnownOrFallback();
   }
 }
 
@@ -270,13 +272,15 @@ export async function updateMaintenanceConfig(params: {
   if (supabaseUrl && serviceKey) {
     try {
       const cleanUrl = supabaseUrl.replace(/\/+$/, "");
-      const res = await fetch(`${cleanUrl}/rest/v1/app_settings?id=eq.global`, {
-        method: "PATCH",
+      // Upsert rather than PATCH: a PATCH on a missing row "succeeds" while changing
+      // nothing, so the toggle silently reverted on the next read.
+      const res = await fetch(`${cleanUrl}/rest/v1/app_settings?on_conflict=id`, {
+        method: "POST",
         headers: {
           apikey: serviceKey,
           Authorization: `Bearer ${serviceKey}`,
           "Content-Type": "application/json",
-          Prefer: "return=representation",
+          Prefer: "resolution=merge-duplicates,return=representation",
         },
         body: JSON.stringify({
           id: "global",
@@ -294,6 +298,11 @@ export async function updateMaintenanceConfig(params: {
         console.error(`[maintenance] Supabase PATCH failed status ${res.status}:`, errorText);
         throw new Error(`Failed to persist to Supabase (${res.status})`);
       }
+
+      const saved = (await res.json()) as MaintenanceRecord[];
+      if (!saved?.length || Boolean(saved[0].maintenance_mode) !== newMode) {
+        throw new Error("Supabase did not confirm the maintenance update");
+      }
     } catch (err) {
       console.error("[maintenance] Failed updating Supabase:", err);
       throw err;
@@ -308,7 +317,7 @@ export async function updateMaintenanceConfig(params: {
     message: newMessage,
     updatedAt,
     updatedBy: params.updatedBy,
-    source: supabaseUrl && serviceKey ? "supabase" : "fallback_memory",
+    source: supabaseUrl && serviceKey ? "supabase" : isMaintenanceDiskPersisted() ? "local_disk" : "fallback_memory",
   };
 
   setCache(updatedResult);

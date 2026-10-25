@@ -61,7 +61,16 @@ export function getVapidKeys(): VapidKeys {
     // Ignore read errors
   }
 
-  // 3. Generate new VAPID keys
+  // On Vercel the filesystem is read-only and not shared between instances, so
+  // generated keys would change on every cold start and silently break every
+  // existing subscription. Require real keys there instead.
+  if (process.env.VERCEL) {
+    throw new Error(
+      "VAPID keys are not configured. Set NEXT_PUBLIC_VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY (npx web-push generate-vapid-keys)."
+    );
+  }
+
+  // 3. Generate new VAPID keys (local development only)
   const generated = webpush.generateVAPIDKeys();
   cachedKeys = {
     publicKey: generated.publicKey,

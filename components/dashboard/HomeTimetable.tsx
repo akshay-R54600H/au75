@@ -5,11 +5,13 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, Clock, MapPin } from "lucide-react";
 import { useApp } from "@/lib/context/AppContext";
 import type { ClassSession, Subject } from "@/lib/models/types";
-import { calcPercentage, calcPrediction } from "@/lib/calculations/engine";
-import { subjectVerdict } from "@/lib/calculations/summary";
+import { calcPercentage, calcPrediction, upcomingSessions } from "@/lib/calculations/engine";
+import { subjectVerdict, planVerdict } from "@/lib/calculations/summary";
 import { todayISO, fmtDay, fmtRange, fmtPct, minutes } from "@/lib/calculations/dates";
 import CircularProgress from "@/components/ui/CircularProgress";
 import PredictionToggle from "@/components/ui/PredictionToggle";
+import { useSwipe } from "@/lib/hooks/useSwipe";
+import { haptic } from "@/lib/haptics";
 
 const LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const TONE = { safe: "text-success", warning: "text-warn", danger: "text-danger" } as const;
@@ -46,8 +48,13 @@ export default function HomeTimetable() {
   }, [weekOffset, state.sessions]);
 
   const [selected, setSelected] = useState(() => (week.includes(today) ? today : week[0]));
+  // Direction of the last day change, for the slide animation.
+  const [dir, setDir] = useState<1 | -1 | 0>(0);
   const prevTodayRef = useRef(today);
   const prevWeekOffsetRef = useRef(weekOffset);
+  /** Set when swiping back past Monday, so we land on the previous week's last day. */
+  const landOnLastRef = useRef(false);
+  const pillsRef = useRef<HTMLDivElement>(null);
 
   // Automatically update selected day when the calendar day rolls over (e.g. at midnight)
   // or when navigating between weeks. While on the same day/week, day changes only when clicked.
@@ -57,10 +64,49 @@ export default function HomeTimetable() {
     prevTodayRef.current = today;
     prevWeekOffsetRef.current = weekOffset;
 
-    if (dayChanged || weekChanged) {
+    if (weekChanged && landOnLastRef.current) {
+      landOnLastRef.current = false;
+      setSelected(week[week.length - 1]);
+    } else if (dayChanged || weekChanged) {
       setSelected(week.includes(today) ? today : week[0]);
     }
   }, [today, weekOffset, week]);
+
+  // Keep the selected day pill visible in the horizontally scrolling row.
+  // (Scrolls only the row — scrollIntoView could also scroll the page.)
+  useEffect(() => {
+    const row = pillsRef.current;
+    const pill = row?.querySelector<HTMLElement>('[aria-pressed="true"]');
+    if (!row || !pill) return;
+    const left = pill.offsetLeft - row.offsetLeft;
+    if (left < row.scrollLeft || left + pill.offsetWidth > row.scrollLeft + row.clientWidth) {
+      row.scrollTo({ left: left - 16, behavior: "smooth" });
+    }
+  }, [selected]);
+
+  function selectDay(d: string) {
+    if (d === selected) return;
+    setDir(week.indexOf(d) > week.indexOf(selected) ? 1 : -1);
+    setSelected(d);
+  }
+
+  function changeWeek(delta: 1 | -1) {
+    setDir(delta);
+    setWeekOffset((o) => o + delta);
+  }
+
+  /** Step one day, rolling over into the next/previous week at the edges. */
+  function stepDay(delta: 1 | -1) {
+    haptic(6);
+    const i = week.indexOf(selected) + delta;
+    if (i >= 0 && i < week.length) selectDay(week[i]);
+    else {
+      landOnLastRef.current = delta < 0;
+      changeWeek(delta);
+    }
+  }
+
+  const swipe = useSwipe(() => stepDay(1), () => stepDay(-1));
 
   const sessions = useMemo(
     () =>
@@ -83,19 +129,20 @@ export default function HomeTimetable() {
         <div className="flex items-center gap-1">
           <button
             type="button"
-            onClick={() => setWeekOffset((o) => o - 1)}
-            className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-line-strong text-ink hover:border-ink/50"
+            onClick={() => changeWeek(-1)}
+            className="pressable flex h-10 w-10 items-center justify-center rounded-full border-2 border-line-strong bg-surface text-ink hover:border-ink/50 md:h-8 md:w-8"
             aria-label="Previous week"
           >
             <ChevronLeft size={16} />
           </button>
-          <span className="min-w-[7.5rem] text-center text-xs font-semibold text-muted">
+          {/* Solid pill so the range stays readable over scenic theme backgrounds. */}
+          <span className="min-w-[7.5rem] rounded-full bg-surface px-2.5 py-1 text-center text-xs font-semibold tabular-nums text-ink/80">
             {fmtDay(week[0])} – {fmtDay(week[week.length - 1])}
           </span>
           <button
             type="button"
-            onClick={() => setWeekOffset((o) => o + 1)}
-            className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-line-strong text-ink hover:border-ink/50"
+            onClick={() => changeWeek(1)}
+            className="pressable flex h-10 w-10 items-center justify-center rounded-full border-2 border-line-strong bg-surface text-ink hover:border-ink/50 md:h-8 md:w-8"
             aria-label="Next week"
           >
             <ChevronRight size={16} />
@@ -103,7 +150,7 @@ export default function HomeTimetable() {
         </div>
       </div>
 
-      <div className="no-scrollbar mb-3 flex gap-2 overflow-x-auto pb-1">
+      <div ref={pillsRef} className="no-scrollbar -mx-4 mb-3 flex snap-x gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:px-0">
         {week.map((d, i) => {
           const on = d === selected;
           const isToday = d === today;
@@ -111,10 +158,13 @@ export default function HomeTimetable() {
             <button
               key={d}
               type="button"
-              onClick={() => setSelected(d)}
+              onClick={() => selectDay(d)}
               aria-pressed={on}
-              className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold uppercase tracking-wide transition-colors ${
-                on ? "bg-ink text-paper" : "border-2 border-line-strong text-muted hover:border-ink/40 hover:text-ink"
+              className={`pressable min-h-9 shrink-0 snap-start rounded-full px-4 text-xs font-bold uppercase tracking-wide ${
+                on
+                  ? "border-2 border-ink bg-ink text-paper"
+                  : // Solid fill so the label stays readable over scenic theme backgrounds.
+                    "border-2 border-line-strong bg-surface text-ink/80 hover:border-ink/40 hover:text-ink"
               }`}
             >
               {LABELS[i]}
@@ -126,7 +176,8 @@ export default function HomeTimetable() {
 
       <div
         key={selected}
-        className="animate-fade-up"
+        {...swipe}
+        className={`min-h-[12rem] ${dir > 0 ? "animate-slide-in-right" : dir < 0 ? "animate-slide-in-left" : "animate-fade-up"}`}
       >
         {sessions.length === 0 ? (
           <div className="card px-4 py-8 text-center text-sm text-muted">
@@ -183,8 +234,8 @@ function ClassCard({
   const pred = state.predictions[session.id] ?? "present";
 
   const futureForSubject = useMemo(
-    () => state.sessions.filter((s) => s.subjectId === session.subjectId && s.isFuture),
-    [state.sessions, session.subjectId]
+    () => upcomingSessions(state.sessions, state.academicDays, undefined, state.settings.lastSyncedAt).filter((s) => s.subjectId === session.subjectId),
+    [state.sessions, state.academicDays, state.settings.lastSyncedAt, session.subjectId]
   );
   const plan = useMemo(
     () => (subject ? calcPrediction(subject, futureForSubject, state.predictions) : null),
@@ -193,7 +244,7 @@ function ClassCard({
   const projectedPct = plan ? plan.predictedPercentage : pct;
   const pv =
     subject && plan
-      ? subjectVerdict(plan.predictedAttended, plan.predictedTotal, attendanceTarget, requirement)
+      ? planVerdict(plan, attendanceTarget, requirement)
       : v;
 
   return (
@@ -237,7 +288,7 @@ function ClassCard({
           <p className={`mt-2 text-sm font-bold ${TONE[v.status]}`}>{v.headline}</p>
         </Link>
         <div className="flex shrink-0 flex-col items-center">
-          <CircularProgress value={pct} size={80} target={attendanceTarget} decimals={showDecimals} />
+          <CircularProgress value={pct} size={80} target={attendanceTarget} decimals={showDecimals} status={v.status} />
           <div className="mt-1.5 text-center text-xs font-bold text-ink whitespace-nowrap">
             <span>Projected: </span>
             <span className={`text-sm font-extrabold ${TONE[pv.status]}`}>
