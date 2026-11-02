@@ -4,9 +4,6 @@ import { completeOtp } from "@/lib/server/portalSessions";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
-// Run next to the portal (India); from the default US region (iad1)
-// every portal request failed with "fetch failed".
-export const preferredRegion = "bom1";
 
 export async function POST(req: NextRequest) {
   let body: { token?: string; otp?: string };
