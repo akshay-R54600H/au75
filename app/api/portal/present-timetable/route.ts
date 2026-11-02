@@ -2,9 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPresentDayTimetable } from "@/lib/portal/realTimetable";
 
 export const dynamic = "force-dynamic";
-// Run next to the portal (India); from the default US region (iad1)
-// every portal request failed with "fetch failed".
-export const preferredRegion = "bom1";
 
 /**
  * GET /api/portal/present-timetable
