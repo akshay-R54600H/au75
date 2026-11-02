@@ -65,19 +65,14 @@ async function fetchDataPage(
 ): Promise<{ html: string; kind: PageKind }> {
   let lastHtml = "";
   for (let attempt = 1; attempt <= DATA_FETCH_ATTEMPTS; attempt++) {
-    let body: string;
-    try {
-      body = (await client.get(url)).body;
-    } catch (err) {
-      if (attempt === DATA_FETCH_ATTEMPTS) throw err;
-      await sleep(DATA_FETCH_BACKOFF_MS * attempt);
-      continue;
-    }
+    // Network errors are already retried inside PortalHttp; retrying them
+    // again here stacked timeouts past the 60s function limit.
+    const body = (await client.get(url)).body;
     const kind = classify(body);
     if (kind === "data" || kind === "unknown") return { html: body, kind };
     // login/dashboard/otp ⇒ the LB re-homed us; retry.
     lastHtml = body;
-    await sleep(DATA_FETCH_BACKOFF_MS * attempt);
+    if (attempt < DATA_FETCH_ATTEMPTS) await sleep(DATA_FETCH_BACKOFF_MS * attempt);
   }
   return { html: lastHtml, kind: classify(lastHtml) };
 }
@@ -191,24 +186,28 @@ export async function submitLogin(
       };
     }
 
-    // Credentials accepted. The response is usually the OTP page, but the
-    // portal sometimes skips OTP — so try for data first, and only park
-    // the session for the OTP step if that fails.
+    // Credentials accepted. The response is usually the OTP page; go
+    // straight to the OTP step then (probing the data pages first just
+    // burned ~8s of retries). The portal sometimes skips OTP, so with no
+    // OTP form, try for data and park for OTP only if that fails.
+    const otpForm = findOtpForm(resp.body);
+    const parkForOtp = (): StartResult => ({
+      step: "otp",
+      token: seal({
+        stage: "session",
+        cookies: client.getCookies(),
+        sessionToken: client.sessionToken,
+        loginAction: s.loginAction,
+        loginReferer: s.loginReferer,
+        otpForm,
+      }),
+      message: "Check your email — the portal sent you an OTP. Enter it below.",
+    });
+    if (otpForm) return parkForOtp();
     try {
       return { step: "done", data: await fetchDataPages(client) };
     } catch {
-      return {
-        step: "otp",
-        token: seal({
-          stage: "session",
-          cookies: client.getCookies(),
-          sessionToken: client.sessionToken,
-          loginAction: s.loginAction,
-          loginReferer: s.loginReferer,
-          otpForm: findOtpForm(resp.body),
-        }),
-        message: "Check your email — the portal sent you an OTP. Enter it below.",
-      };
+      return parkForOtp();
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

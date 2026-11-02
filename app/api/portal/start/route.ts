@@ -24,7 +24,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const t0 = Date.now();
   const result = await submitLogin(token, studentId, password, captcha);
+  console.log(`[portal/start] ${Date.now() - t0}ms ${result.step}`);
   if (result.step === "failed") {
     return NextResponse.json(
       { error: result.message, reason: result.reason },

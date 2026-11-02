@@ -23,7 +23,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const t0 = Date.now();
   const result = await completeOtp(token, otp);
+  console.log(`[portal/verify] ${Date.now() - t0}ms ${result.ok ? "ok" : "failed"}`);
   if (!result.ok) {
     return NextResponse.json({ error: result.message }, { status: 401 });
   }
