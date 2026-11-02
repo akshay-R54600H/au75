@@ -36,6 +36,27 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+/**
+ * Flatten an error and its cause chain. Node's fetch only says "fetch
+ * failed"; the actual reason (ECONNRESET, UND_ERR_CONNECT_TIMEOUT, a TLS
+ * error, ...) lives in err.cause.
+ */
+function describeError(err: unknown): string {
+  const parts: string[] = [];
+  let cur: unknown = err;
+  for (let depth = 0; cur && depth < 4; depth++) {
+    if (cur instanceof Error) {
+      const code = (cur as Error & { code?: string }).code;
+      parts.push(code ? `${cur.message} (${code})` : cur.message);
+      cur = cur.cause;
+    } else {
+      parts.push(String(cur));
+      break;
+    }
+  }
+  return parts.join(" <- ");
+}
+
 export interface PortalHttpOptions {
   timeoutMs?: number;
   tries?: number;
@@ -205,7 +226,8 @@ export class PortalHttp {
           headers: {},
         };
       } catch (err) {
-        this.lastError = err instanceof Error ? err.message : String(err);
+        this.lastError = describeError(err);
+        console.error(`[PortalHttp] ${method} ${fullUrl.replace(/;jsessionid=[^?#]*/, "")} attempt ${attempt}/${tries}: ${this.lastError}`);
         if (attempt === tries) {
           throw new Error(
             `[PortalHttp] request failed after ${tries} tries: ${this.lastError}`
